@@ -444,41 +444,61 @@ async function capturarRecibo(contenedorEl) {
   return html2canvas(contenedorEl, { backgroundColor: '#ffffff', scale: 2 });
 }
 
-async function descargarReciboPDF(contenedorEl, folio) {
-  let canvas;
+async function descargarReciboPDF(contenedorEl, folio, btn) {
+  const textoOriginal = btn ? btn.textContent : null;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Generando...';
+  }
+
   try {
-    canvas = await capturarRecibo(contenedorEl);
+    const canvas = await capturarRecibo(contenedorEl);
+    const pdf = new jsPDF({
+      orientation: canvas.width >= canvas.height ? 'l' : 'p',
+      unit: 'px',
+      format: [canvas.width, canvas.height],
+    });
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width, canvas.height);
+    pdf.save(`recibo-${folio}.pdf`);
   } catch (err) {
     toast('No se pudo generar el PDF. Intenta de nuevo.', 'error');
-    return;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = textoOriginal;
+    }
   }
-
-  const pdf = new jsPDF({
-    orientation: canvas.width >= canvas.height ? 'l' : 'p',
-    unit: 'px',
-    format: [canvas.width, canvas.height],
-  });
-  pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width, canvas.height);
-  pdf.save(`recibo-${folio}.pdf`);
 }
 
-async function compartirReciboWhatsApp(contenedorEl, folio) {
-  let canvas;
-  try {
-    canvas = await capturarRecibo(contenedorEl);
-  } catch (err) {
-    toast('No se pudo compartir. Intenta de nuevo.', 'error');
-    return;
+async function compartirReciboWhatsApp(contenedorEl, folio, btn) {
+  const textoOriginal = btn ? btn.textContent : null;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Compartiendo...';
   }
 
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-  const file = new File([blob], `recibo-${folio}.png`, { type: 'image/png' });
-
   try {
-    await navigator.share({ files: [file] });
+    const canvas = await capturarRecibo(contenedorEl);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) {
+      toast('No se pudo compartir. Intenta de nuevo.', 'error');
+      return;
+    }
+    const file = new File([blob], `recibo-${folio}.png`, { type: 'image/png' });
+
+    try {
+      await navigator.share({ files: [file] });
+    } catch (err) {
+      if (err.name === 'AbortError') return; // usuario canceló el picker — no es un error
+      toast('No se pudo compartir. Intenta de nuevo.', 'error');
+    }
   } catch (err) {
-    if (err.name === 'AbortError') return; // usuario canceló el picker — no es un error
     toast('No se pudo compartir. Intenta de nuevo.', 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = textoOriginal;
+    }
   }
 }
 
@@ -778,11 +798,11 @@ function initVentas() {
   document.getElementById('venta-cerrar').addEventListener('click', closeVentaPanel);
   document.getElementById('venta-confirmar').addEventListener('click', confirmarVenta);
   document.getElementById('venta-recibo-cerrar').addEventListener('click', closeVentaPanel);
-  document.getElementById('venta-recibo-pdf').addEventListener('click', () => {
-    descargarReciboPDF(document.getElementById('venta-recibo-contenido'), ventaReciboFolioActual);
+  document.getElementById('venta-recibo-pdf').addEventListener('click', (e) => {
+    descargarReciboPDF(document.getElementById('venta-recibo-contenido'), ventaReciboFolioActual, e.currentTarget);
   });
-  document.getElementById('venta-recibo-whatsapp').addEventListener('click', () => {
-    compartirReciboWhatsApp(document.getElementById('venta-recibo-contenido'), ventaReciboFolioActual);
+  document.getElementById('venta-recibo-whatsapp').addEventListener('click', (e) => {
+    compartirReciboWhatsApp(document.getElementById('venta-recibo-contenido'), ventaReciboFolioActual, e.currentTarget);
   });
   document.querySelectorAll('.toggle-btn[data-tipo]').forEach((btn) => {
     btn.addEventListener('click', () => setVentaTipo(btn.dataset.tipo));
@@ -929,11 +949,11 @@ function initAbonos() {
   document.getElementById('abono-cliente').addEventListener('change', handleAbonoClienteChange);
   document.getElementById('abono-confirmar').addEventListener('click', confirmarAbono);
   document.getElementById('abono-recibo-cerrar').addEventListener('click', closeAbonoPanel);
-  document.getElementById('abono-recibo-pdf').addEventListener('click', () => {
-    descargarReciboPDF(document.getElementById('abono-recibo-contenido'), abonoReciboFolioActual);
+  document.getElementById('abono-recibo-pdf').addEventListener('click', (e) => {
+    descargarReciboPDF(document.getElementById('abono-recibo-contenido'), abonoReciboFolioActual, e.currentTarget);
   });
-  document.getElementById('abono-recibo-whatsapp').addEventListener('click', () => {
-    compartirReciboWhatsApp(document.getElementById('abono-recibo-contenido'), abonoReciboFolioActual);
+  document.getElementById('abono-recibo-whatsapp').addEventListener('click', (e) => {
+    compartirReciboWhatsApp(document.getElementById('abono-recibo-contenido'), abonoReciboFolioActual, e.currentTarget);
   });
 }
 

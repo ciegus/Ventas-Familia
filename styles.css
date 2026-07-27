@@ -618,6 +618,11 @@ body {
   border: 1px solid var(--border);
 }
 
+/* Recibos: separa los botones apilados (PDF / WhatsApp / Listo) */
+.fs-content .btn + .btn {
+  margin-top: 10px;
+}
+
 /* ---------- Toast ---------- */
 
 #toast {

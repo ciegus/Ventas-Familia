@@ -245,9 +245,13 @@ convierte a PNG y lo pasa a `navigator.share()` — el picker nativo del sistema
 quien elige WhatsApp, nunca se genera un link `wa.me`. El botón de WhatsApp se
 oculta por completo si el navegador no soporta compartir archivos (`navigator.canShare`).
 Probado en navegador: PDF descargado fiel al recibo en pantalla en ambos tipos de
-recibo, compartir abre el picker nativo, cancelar el picker no muestra error,
-botón de WhatsApp ausente cuando se simula falta de soporte, sin regresión en
-los flujos de venta/abono/anulación existentes.
+recibo, botón de WhatsApp ausente cuando se simula falta de soporte, cancelar el
+picker (`AbortError` simulado) no muestra error, sin regresión en los flujos de
+venta/abono/anulación existentes. La invocación de `navigator.share()` está
+integrada según la API estándar, pero completar un compartir real hacia WhatsApp
+(picker nativo abriéndose y la app recibiendo el archivo) no se verificó en
+dispositivo real — falta esa prueba puntual en un teléfono antes de confiar el
+flujo al 100% en producción.
 
 - [x] Botón "Descargar PDF" (`html2canvas` + `jsPDF`) — fiel al recibo en
       pantalla
