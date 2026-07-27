@@ -104,6 +104,7 @@ async function handleLogin(event) {
 
 function handleLogout() {
   clearSession();
+  historialCache = [];
   showView('view-login');
 }
 
@@ -885,6 +886,8 @@ async function loadHistorial() {
 
   if (ventasError || abonosError) {
     toast('No se pudo cargar el historial.', 'error');
+    historialCache = [];
+    renderHistorial();
     return;
   }
 
@@ -982,7 +985,8 @@ function renderHistorial() {
     `;
 
     if (puedeAnular) {
-      card.querySelector('.btn-anular').addEventListener('click', () => confirmarAnular(item));
+      const btnAnular = card.querySelector('.btn-anular');
+      btnAnular.addEventListener('click', () => confirmarAnular(item, btnAnular));
     }
 
     list.appendChild(card);
@@ -1000,7 +1004,7 @@ function closeHistorialPanel() {
   document.getElementById('historial-panel').classList.remove('show');
 }
 
-async function confirmarAnular(item) {
+async function confirmarAnular(item, btn) {
   if (!assertOnline()) return;
 
   const tipoLabel = item.tipo === 'venta' ? 'venta' : 'abono';
@@ -1009,32 +1013,40 @@ async function confirmarAnular(item) {
   );
   if (!ok) return;
 
-  const session = getSession();
-  const rpcName = item.tipo === 'venta' ? 'anular_venta' : 'anular_abono';
-  const params = item.tipo === 'venta'
-    ? { p_venta_id: item.id, p_usuario_id: session.id }
-    : { p_abono_id: item.id, p_usuario_id: session.id };
+  btn.disabled = true;
+  btn.textContent = 'Anulando...';
 
-  const { error } = await supabase.rpc(rpcName, params);
+  try {
+    const session = getSession();
+    const rpcName = item.tipo === 'venta' ? 'anular_venta' : 'anular_abono';
+    const params = item.tipo === 'venta'
+      ? { p_venta_id: item.id, p_usuario_id: session.id }
+      : { p_abono_id: item.id, p_usuario_id: session.id };
 
-  if (error) {
-    const msg = error.message || '';
-    if (msg.includes('PERMISO_DENEGADO')) {
-      toast('No tienes permiso para anular este registro.', 'error');
-    } else if (msg.includes('YA_ANULADO')) {
-      toast('Este registro ya estaba anulado.', 'error');
-    } else if (msg.includes('SALDO_INSUFICIENTE_PARA_ANULAR')) {
-      toast('No se puede anular: el cliente ya abonó contra este saldo. Contacta al admin.', 'error');
-    } else {
-      toast('No se pudo anular. Intenta de nuevo.', 'error');
+    const { error } = await supabase.rpc(rpcName, params);
+
+    if (error) {
+      const msg = error.message || '';
+      if (msg.includes('PERMISO_DENEGADO')) {
+        toast('No tienes permiso para anular este registro.', 'error');
+      } else if (msg.includes('YA_ANULADO')) {
+        toast('Este registro ya estaba anulado.', 'error');
+      } else if (msg.includes('SALDO_INSUFICIENTE_PARA_ANULAR')) {
+        toast('No se puede anular: el cliente ya abonó contra este saldo. Contacta al admin.', 'error');
+      } else {
+        toast('No se pudo anular. Intenta de nuevo.', 'error');
+      }
+      return;
     }
-    return;
-  }
 
-  toast('Registro anulado.');
-  loadHistorial();
-  loadProductos();
-  loadClientes();
+    toast('Registro anulado.');
+    loadHistorial();
+    loadProductos();
+    loadClientes();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Anular';
+  }
 }
 
 function initHistorial() {
