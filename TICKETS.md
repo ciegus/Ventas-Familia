@@ -229,18 +229,31 @@ conexión bloquea con error claro.
 
 ---
 
-## 09 — Recibos: descarga PDF y compartir WhatsApp
+## 09 — Recibos: descarga PDF y compartir WhatsApp ✅
 
 **Blocked by:** 05, 07
 
 **Qué construye:** sobre la vista de recibo ya construida en 05/07, agrega
 descarga como PDF y envío directo por WhatsApp.
 
-- [ ] Botón "Descargar PDF" (`html2canvas` + `jsPDF`) — fiel al recibo en
+**Estado:** completado — dos botones nuevos (`.btn-outline`) entre la tarjeta del
+recibo y "Listo", tanto en el recibo de venta como en el de abono. `html2canvas`
+captura el mismo `.card` que ya está en pantalla (import ESM desde `esm.sh`, sin
+build step); "Descargar PDF" lo empaqueta con `jsPDF` en una página del mismo
+tamaño que el contenido (sin márgenes de hoja carta); "Compartir WhatsApp" lo
+convierte a PNG y lo pasa a `navigator.share()` — el picker nativo del sistema es
+quien elige WhatsApp, nunca se genera un link `wa.me`. El botón de WhatsApp se
+oculta por completo si el navegador no soporta compartir archivos (`navigator.canShare`).
+Probado en navegador: PDF descargado fiel al recibo en pantalla en ambos tipos de
+recibo, compartir abre el picker nativo, cancelar el picker no muestra error,
+botón de WhatsApp ausente cuando se simula falta de soporte, sin regresión en
+los flujos de venta/abono/anulación existentes.
+
+- [x] Botón "Descargar PDF" (`html2canvas` + `jsPDF`) — fiel al recibo en
       pantalla
-- [ ] Botón "Compartir WhatsApp" vía Web Share API (no genera link `wa.me`)
-- [ ] Ambos disponibles tanto en recibo de venta como de abono
-- [ ] Sin nombre de negocio en ningún lado del recibo
+- [x] Botón "Compartir WhatsApp" vía Web Share API (no genera link `wa.me`)
+- [x] Ambos disponibles tanto en recibo de venta como de abono
+- [x] Sin nombre de negocio en ningún lado del recibo
 
 ---
 
