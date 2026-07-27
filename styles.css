@@ -367,6 +367,47 @@ body {
   font-size: 16px;
 }
 
+/* ---------- Dashboard (Inicio) ---------- */
+
+.dash-stats-row {
+  display: flex;
+  gap: 12px;
+  margin: 4px 0 20px;
+}
+
+.dash-stat-card {
+  flex: 1;
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: 0 2px 8px rgba(18, 35, 63, 0.05);
+  border-left: 4px solid var(--accent-dark);
+}
+
+.dash-stat-card.dash-stat-alt {
+  border-left-color: #1B2A4C;
+}
+
+.dash-stat-label {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.dash-stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  margin-top: 4px;
+}
+
+.dash-stat-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
 /* ---------- Bottom nav (4 pestañas: Inicio / Inventario / Clientes / Reportes) ---------- */
 
 .bottom-nav {

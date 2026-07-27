@@ -125,11 +125,74 @@ function switchTab(tabName) {
 
   if (tabName === 'clientes') loadClientes();
   if (tabName === 'inventario') loadProductos();
+  if (tabName === 'inicio') loadDashboard();
 }
 
 function initNav() {
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+}
+
+// ---------- Dashboard (Inicio) ----------
+// Ventas/abonos del día (todo el negocio) + clientes con saldo pendiente (SPEC sección 10).
+
+async function loadDashboard() {
+  const inicioDia = new Date();
+  inicioDia.setHours(0, 0, 0, 0);
+  const inicioDiaISO = inicioDia.toISOString();
+
+  const [
+    { data: ventasHoy, error: ventasError },
+    { data: abonosHoy, error: abonosError },
+    { data: clientesSaldo, error: clientesError },
+  ] = await Promise.all([
+    supabase.from('ventas').select('total')
+      .eq('anulado', false).gte('creado_en', inicioDiaISO),
+    supabase.from('abonos').select('monto')
+      .eq('anulado', false).gte('creado_en', inicioDiaISO),
+    supabase.from('clientes').select('id, nombre, saldo_pendiente')
+      .gt('saldo_pendiente', 0).order('saldo_pendiente', { ascending: false }),
+  ]);
+
+  if (ventasError || abonosError || clientesError) {
+    toast('No se pudo cargar el dashboard.', 'error');
+    return;
+  }
+
+  renderDashboardStats(ventasHoy || [], abonosHoy || []);
+  renderDashboardSaldos(clientesSaldo || []);
+}
+
+function renderDashboardStats(ventasHoy, abonosHoy) {
+  const totalVentas = ventasHoy.reduce((sum, v) => sum + Number(v.total), 0);
+  const totalAbonos = abonosHoy.reduce((sum, a) => sum + Number(a.monto), 0);
+
+  document.getElementById('dash-ventas-total').textContent = money.format(totalVentas);
+  document.getElementById('dash-ventas-count').textContent =
+    `${ventasHoy.length} venta${ventasHoy.length === 1 ? '' : 's'}`;
+  document.getElementById('dash-abonos-total').textContent = money.format(totalAbonos);
+  document.getElementById('dash-abonos-count').textContent =
+    `${abonosHoy.length} abono${abonosHoy.length === 1 ? '' : 's'}`;
+}
+
+function renderDashboardSaldos(clientes) {
+  const list = document.getElementById('dash-saldos-list');
+  const empty = document.getElementById('dash-saldos-empty');
+
+  list.innerHTML = '';
+  empty.style.display = clientes.length === 0 ? 'block' : 'none';
+
+  clientes.forEach((cliente) => {
+    const item = document.createElement('div');
+    item.className = 'list-item';
+    item.innerHTML = `
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(cliente.nombre)}</div>
+      </div>
+      <div class="li-badge pendiente">${money.format(Number(cliente.saldo_pendiente))}</div>
+    `;
+    list.appendChild(item);
   });
 }
 
@@ -751,6 +814,7 @@ async function confirmarVenta() {
 
     loadProductos();
     loadClientes();
+    loadDashboard();
   } finally {
     confirmBtn.disabled = false;
     confirmBtn.textContent = 'Confirmar venta';
@@ -919,6 +983,7 @@ async function confirmarAbono() {
     });
 
     loadClientes();
+    loadDashboard();
   } finally {
     confirmBtn.disabled = false;
     confirmBtn.textContent = 'Confirmar abono';
@@ -1137,6 +1202,7 @@ async function confirmarAnular(item, btn) {
     loadHistorial();
     loadProductos();
     loadClientes();
+    loadDashboard();
   } finally {
     btn.disabled = false;
     btn.textContent = 'Anular';

@@ -70,9 +70,24 @@
           <span class="quick-action-icon">📋</span>
           Historial
         </button>
-        <p class="placeholder">
-          El resto del dashboard (ventas/abonos del día, clientes con saldo) se
-          construye en el ticket 10 de TICKETS.md.
+
+        <div class="dash-stats-row">
+          <div class="dash-stat-card">
+            <div class="dash-stat-label">Ventas de hoy</div>
+            <div class="dash-stat-value" id="dash-ventas-total">$0.00</div>
+            <div class="dash-stat-sub" id="dash-ventas-count">0 ventas</div>
+          </div>
+          <div class="dash-stat-card dash-stat-alt">
+            <div class="dash-stat-label">Abonos de hoy</div>
+            <div class="dash-stat-value" id="dash-abonos-total">$0.00</div>
+            <div class="dash-stat-sub" id="dash-abonos-count">0 abonos</div>
+          </div>
+        </div>
+
+        <h3 class="fs-subtitle">Clientes con saldo pendiente</h3>
+        <div id="dash-saldos-list"></div>
+        <p id="dash-saldos-empty" class="tab-placeholder" style="display:none;">
+          Ningún cliente tiene saldo pendiente.
         </p>
       </div>
 
