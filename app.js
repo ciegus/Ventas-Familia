@@ -792,6 +792,7 @@ function initVentas() {
 // ---------- Abonos ----------
 
 let abonoClientesCache = [];
+let abonoReciboFolioActual = null;
 
 async function openAbonoPanel() {
   document.getElementById('abono-error').textContent = '';
@@ -906,6 +907,7 @@ async function confirmarAbono() {
 
 function mostrarReciboAbono(info) {
   const cont = document.getElementById('abono-recibo-contenido');
+  abonoReciboFolioActual = info.folio;
   cont.innerHTML = `
     <div class="recibo-linea"><span>Folio</span><span>${escapeHtml(info.folio)}</span></div>
     <div class="recibo-linea"><span>Fecha</span><span>${fechaFmt.format(info.fecha)}</span></div>
@@ -918,6 +920,7 @@ function mostrarReciboAbono(info) {
 
   document.getElementById('abono-paso-armar').style.display = 'none';
   document.getElementById('abono-paso-recibo').style.display = 'block';
+  document.getElementById('abono-recibo-whatsapp').style.display = soportaCompartirArchivos() ? 'block' : 'none';
 }
 
 function initAbonos() {
@@ -926,6 +929,12 @@ function initAbonos() {
   document.getElementById('abono-cliente').addEventListener('change', handleAbonoClienteChange);
   document.getElementById('abono-confirmar').addEventListener('click', confirmarAbono);
   document.getElementById('abono-recibo-cerrar').addEventListener('click', closeAbonoPanel);
+  document.getElementById('abono-recibo-pdf').addEventListener('click', () => {
+    descargarReciboPDF(document.getElementById('abono-recibo-contenido'), abonoReciboFolioActual);
+  });
+  document.getElementById('abono-recibo-whatsapp').addEventListener('click', () => {
+    compartirReciboWhatsApp(document.getElementById('abono-recibo-contenido'), abonoReciboFolioActual);
+  });
 }
 
 // ---------- Historial ----------
