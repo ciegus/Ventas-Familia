@@ -644,3 +644,60 @@ body {
 }
 
 #toast.toast-error { background: var(--error); }
+
+/* ---------- Historial ---------- */
+
+.quick-action-outline {
+  background: var(--card);
+  color: var(--navy);
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(18, 35, 63, 0.05);
+}
+
+.historial-item {
+  cursor: default;
+  align-items: flex-start;
+}
+
+.historial-item.anulado {
+  opacity: 0.55;
+}
+
+.historial-item-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.historial-monto {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--navy);
+}
+
+.historial-item.anulado .historial-monto {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.historial-anulado-tag {
+  color: var(--error);
+  font-weight: 600;
+}
+
+.btn-anular {
+  background: transparent;
+  border: 1px solid var(--error);
+  color: var(--error);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-anular:active {
+  filter: brightness(0.95);
+}

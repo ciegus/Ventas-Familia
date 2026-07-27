@@ -66,6 +66,10 @@
           <span class="quick-action-icon">💵</span>
           Nuevo abono
         </button>
+        <button id="btn-historial" class="quick-action quick-action-outline">
+          <span class="quick-action-icon">📋</span>
+          Historial
+        </button>
         <p class="placeholder">
           El resto del dashboard (ventas/abonos del día, clientes con saldo) se
           construye en el ticket 10 de TICKETS.md.
@@ -263,6 +267,23 @@
         <div class="card" id="abono-recibo-contenido"></div>
         <button id="abono-recibo-cerrar" class="btn btn-primary">Listo</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ============ Panel Historial (fullscreen) ============ -->
+  <div id="historial-panel" class="fullscreen-overlay">
+    <div class="fs-header">
+      <button id="historial-cerrar" class="icon-btn" type="button">✕</button>
+      <h3>Historial</h3>
+      <span style="width:32px"></span>
+    </div>
+
+    <div class="fs-content">
+      <div id="historial-filtros" class="chip-row"></div>
+      <div id="historial-list" class="list"></div>
+      <p id="historial-empty" class="tab-placeholder" style="display:none;">
+        Aún no hay ventas ni abonos registrados.
+      </p>
     </div>
   </div>
 
