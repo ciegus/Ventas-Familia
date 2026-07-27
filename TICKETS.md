@@ -195,21 +195,36 @@ refresca con el saldo actualizado al reabrir, bloqueo claro sin conexión.
 
 ---
 
-## 08 — Anulaciones
+## 08 — Anulaciones ✅
 
 **Blocked by:** 06, 07
 
 **Qué construye:** reversión correcta de ventas y abonos, con permisos
 diferenciados por rol.
 
-- [ ] Botón "Anular" en historial de ventas/abonos — visible según permisos:
+**Estado:** completado — pantalla nueva "Historial" (tercer botón de acción rápida
+en Inicio, panel fullscreen) con lista combinada de ventas + abonos, chips
+Todos/Ventas/Abonos, y botón "Anular" visible solo para el vendedor dueño del
+registro o para Papá (admin). Lógica atómica en las funciones SQL `anular_venta()`
+y `anular_abono()` — mismo patrón `SECURITY DEFINER` que `registrar_venta()`/
+`registrar_abono()`. Probado en navegador: anular venta de contado repone stock,
+anular venta a crédito repone stock y resta el saldo pendiente correcto, anular
+abono suma el monto de vuelta al saldo, permisos correctos por rol (vendedor solo
+ve "Anular" en lo suyo, Papá lo ve en todo), doble anulación rechazada, sin
+conexión bloquea con error claro.
+
+- [x] Botón "Anular" en historial de ventas/abonos — visible según permisos:
       vendedor solo ve el suyo, Papá (admin) ve cualquiera
-- [ ] Anular **abono**: revierte, suma el monto de vuelta al saldo del cliente
-- [ ] Anular **venta a crédito**: resta del saldo global lo que había quedado
-      pendiente de esa venta; los abonos ya aplicados a la cuenta no se tocan
-- [ ] Anular **venta de contado**: repone el stock vendido (mercancía nunca salió
+- [x] Anular **abono**: revierte, suma el monto de vuelta al saldo del cliente
+- [x] Anular **venta a crédito**: resta del saldo global lo que había quedado
+      pendiente de esa venta; los abonos ya aplicados a la cuenta no se tocan.
+      **Caso límite agregado:** si eso dejaría el saldo negativo (el cliente ya
+      abonó de más contra esa cuenta), la anulación se bloquea con mensaje claro
+      en vez de permitir un saldo negativo (ver
+      [docs/superpowers/specs/2026-07-27-anulaciones-design.md](docs/superpowers/specs/2026-07-27-anulaciones-design.md))
+- [x] Anular **venta de contado**: repone el stock vendido (mercancía nunca salió
       realmente), no toca ningún saldo
-- [ ] Nunca se borra físicamente — se marca `anulado`, `anulado_por`,
+- [x] Nunca se borra físicamente — se marca `anulado`, `anulado_por`,
       `anulado_en`
 
 ---
