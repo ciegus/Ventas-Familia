@@ -862,6 +862,149 @@ function initAbonos() {
   document.getElementById('abono-recibo-cerrar').addEventListener('click', closeAbonoPanel);
 }
 
+// ---------- Historial ----------
+
+let historialCache = [];
+let historialFiltroActual = 'todos';
+
+async function loadHistorial() {
+  const [{ data: ventas, error: ventasError }, { data: abonos, error: abonosError }] = await Promise.all([
+    supabase.from('ventas').select(`
+      id, folio, tipo, total, enganche, creado_en, anulado, anulado_en, vendedor_id,
+      cliente:clientes(nombre),
+      vendedor:usuarios!ventas_vendedor_id_fkey(nombre),
+      anulador:usuarios!ventas_anulado_por_fkey(nombre)
+    `).order('creado_en', { ascending: false }).limit(200),
+    supabase.from('abonos').select(`
+      id, folio, monto, creado_en, anulado, anulado_en, vendedor_id,
+      cliente:clientes(nombre),
+      vendedor:usuarios!abonos_vendedor_id_fkey(nombre),
+      anulador:usuarios!abonos_anulado_por_fkey(nombre)
+    `).order('creado_en', { ascending: false }).limit(200),
+  ]);
+
+  if (ventasError || abonosError) {
+    toast('No se pudo cargar el historial.', 'error');
+    return;
+  }
+
+  const itemsVenta = (ventas || []).map((v) => ({
+    tipo: 'venta',
+    id: v.id,
+    folio: v.folio,
+    ventaTipo: v.tipo,
+    monto: Number(v.total),
+    creadoEn: new Date(v.creado_en),
+    anulado: v.anulado,
+    anuladoEn: v.anulado_en ? new Date(v.anulado_en) : null,
+    anuladorNombre: v.anulador ? v.anulador.nombre : null,
+    clienteNombre: v.cliente ? v.cliente.nombre : null,
+    vendedorNombre: v.vendedor ? v.vendedor.nombre : '—',
+    vendedorId: v.vendedor_id,
+  }));
+
+  const itemsAbono = (abonos || []).map((a) => ({
+    tipo: 'abono',
+    id: a.id,
+    folio: a.folio,
+    monto: Number(a.monto),
+    creadoEn: new Date(a.creado_en),
+    anulado: a.anulado,
+    anuladoEn: a.anulado_en ? new Date(a.anulado_en) : null,
+    anuladorNombre: a.anulador ? a.anulador.nombre : null,
+    clienteNombre: a.cliente ? a.cliente.nombre : null,
+    vendedorNombre: a.vendedor ? a.vendedor.nombre : '—',
+    vendedorId: a.vendedor_id,
+  }));
+
+  historialCache = [...itemsVenta, ...itemsAbono].sort((a, b) => b.creadoEn - a.creadoEn);
+  renderHistorial();
+}
+
+function renderHistorialFiltros() {
+  const cont = document.getElementById('historial-filtros');
+  cont.innerHTML = '';
+  const opciones = [
+    { value: 'todos', label: 'Todos' },
+    { value: 'venta', label: 'Ventas' },
+    { value: 'abono', label: 'Abonos' },
+  ];
+  opciones.forEach(({ value, label }) => {
+    const btn = document.createElement('button');
+    btn.className = 'chip' + (value === historialFiltroActual ? ' active' : '');
+    btn.textContent = label;
+    btn.addEventListener('click', () => {
+      historialFiltroActual = value;
+      renderHistorialFiltros();
+      renderHistorial();
+    });
+    cont.appendChild(btn);
+  });
+}
+
+function renderHistorial() {
+  const list = document.getElementById('historial-list');
+  const empty = document.getElementById('historial-empty');
+  const session = getSession();
+
+  const items = historialFiltroActual === 'todos'
+    ? historialCache
+    : historialCache.filter((item) => item.tipo === historialFiltroActual);
+
+  list.innerHTML = '';
+  empty.style.display = items.length === 0 ? 'block' : 'none';
+
+  items.forEach((item) => {
+    const puedeAnular = !item.anulado && session &&
+      (session.rol === 'admin' || session.id === item.vendedorId);
+
+    const card = document.createElement('div');
+    card.className = 'list-item historial-item' + (item.anulado ? ' anulado' : '');
+
+    const tituloTipo = item.tipo === 'venta'
+      ? `🛒 ${escapeHtml(item.folio)} · ${item.ventaTipo === 'credito' ? 'Crédito' : 'Contado'}`
+      : `💵 ${escapeHtml(item.folio)}`;
+
+    const anuladoTag = item.anulado
+      ? `<div class="li-sub historial-anulado-tag">Anulado por ${escapeHtml(item.anuladorNombre || '—')} · ${fechaFmt.format(item.anuladoEn)}</div>`
+      : '';
+
+    card.innerHTML = `
+      <div class="li-main">
+        <div class="li-title">${tituloTipo}</div>
+        <div class="li-sub">${item.clienteNombre ? escapeHtml(item.clienteNombre) : 'Sin cliente'} · ${escapeHtml(item.vendedorNombre)} · ${fechaFmt.format(item.creadoEn)}</div>
+        ${anuladoTag}
+      </div>
+      <div class="historial-item-right">
+        <div class="historial-monto">${money.format(item.monto)}</div>
+        ${puedeAnular ? '<button type="button" class="btn-anular">Anular</button>' : ''}
+      </div>
+    `;
+
+    if (puedeAnular) {
+      card.querySelector('.btn-anular').addEventListener('click', () => confirmarAnular(item));
+    }
+
+    list.appendChild(card);
+  });
+}
+
+async function openHistorialPanel() {
+  historialFiltroActual = 'todos';
+  renderHistorialFiltros();
+  document.getElementById('historial-panel').classList.add('show');
+  await loadHistorial();
+}
+
+function closeHistorialPanel() {
+  document.getElementById('historial-panel').classList.remove('show');
+}
+
+function initHistorial() {
+  document.getElementById('btn-historial').addEventListener('click', openHistorialPanel);
+  document.getElementById('historial-cerrar').addEventListener('click', closeHistorialPanel);
+}
+
 // ---------- Init ----------
 
 function init() {
@@ -872,6 +1015,7 @@ function init() {
   initInventario();
   initVentas();
   initAbonos();
+  initHistorial();
 
   const session = getSession();
   if (session) {
