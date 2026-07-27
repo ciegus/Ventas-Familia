@@ -453,7 +453,11 @@ async function descargarReciboPDF(contenedorEl, folio) {
     return;
   }
 
-  const pdf = new jsPDF({ unit: 'px', format: [canvas.width, canvas.height] });
+  const pdf = new jsPDF({
+    orientation: canvas.width >= canvas.height ? 'l' : 'p',
+    unit: 'px',
+    format: [canvas.width, canvas.height],
+  });
   pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width, canvas.height);
   pdf.save(`recibo-${folio}.pdf`);
 }
