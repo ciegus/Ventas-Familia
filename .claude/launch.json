@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ventas-familia-static",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["-y", "serve", "."],
+      "port": 3000,
+      "autoPort": true
+    }
+  ]
+}

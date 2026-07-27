@@ -1,0 +1,888 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const SUPABASE_URL = 'https://wiewxgkiefsjeonirsid.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndpZXd4Z2tpZWZzamVvbmlyc2lkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwMzY1MTQsImV4cCI6MjEwMDYxMjUxNH0.EM-_AV-yzKe0o-dT9EGiyhUA3djwZTVyWehzdVrGaIA';
+const SESSION_KEY = 'vf_user';
+
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ---------- Toast ----------
+
+let toastTimer = null;
+
+export function toast(message, kind = 'info') {
+  const el = document.getElementById('toast');
+  el.textContent = message;
+  el.classList.toggle('toast-error', kind === 'error');
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
+}
+
+// ---------- Conexión ----------
+// Cualquier operación de escritura (venta, abono, alta de cliente/producto) exige
+// internet activo en ese momento — sin cola offline (SPEC sección 9).
+
+export function assertOnline() {
+  if (!navigator.onLine) {
+    toast('Sin conexión a internet. Esta acción requiere estar en línea.', 'error');
+    return false;
+  }
+  return true;
+}
+
+// ---------- Sesión ----------
+
+export function getSession() {
+  const raw = localStorage.getItem(SESSION_KEY);
+  return raw ? JSON.parse(raw) : null;
+}
+
+function setSession(user) {
+  localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+}
+
+function clearSession() {
+  localStorage.removeItem(SESSION_KEY);
+}
+
+// ---------- Vistas ----------
+
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function renderMain(user) {
+  document.getElementById('main-nombre').textContent = user.nombre;
+  document.getElementById('main-rol').textContent =
+    user.rol === 'admin' ? 'Gerente' : 'Vendedor';
+  switchTab('inicio');
+  showView('view-main');
+}
+
+// ---------- Login ----------
+
+async function handleLogin(event) {
+  event.preventDefault();
+  if (!assertOnline()) return;
+
+  const nombre = document.getElementById('login-nombre').value;
+  const password = document.getElementById('login-password').value;
+  const errorEl = document.getElementById('login-error');
+  const submitBtn = document.getElementById('login-submit');
+
+  errorEl.textContent = '';
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Entrando...';
+
+  try {
+    const { data, error } = await supabase.rpc('login_usuario', {
+      p_nombre: nombre,
+      p_password: password,
+    });
+
+    if (error) {
+      errorEl.textContent = 'No se pudo iniciar sesión. Intenta de nuevo.';
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      errorEl.textContent = 'Usuario o contraseña incorrectos.';
+      return;
+    }
+
+    const user = data[0];
+    setSession(user);
+    document.getElementById('login-form').reset();
+    renderMain(user);
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Entrar';
+  }
+}
+
+function handleLogout() {
+  clearSession();
+  showView('view-login');
+}
+
+// ---------- Navegación (barra inferior de 4 pestañas) ----------
+
+function switchTab(tabName) {
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tabName);
+  });
+  document.querySelectorAll('.tab-panel').forEach(panel => {
+    panel.classList.toggle('active', panel.id === `tab-${tabName}`);
+  });
+  document.querySelectorAll('.fab').forEach((fab) => {
+    fab.classList.toggle('show', fab.dataset.fabFor === tabName);
+  });
+
+  if (tabName === 'clientes') loadClientes();
+  if (tabName === 'inventario') loadProductos();
+}
+
+function initNav() {
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+}
+
+// ---------- Clientes ----------
+
+const money = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
+let clienteEditId = null;
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+async function loadClientes() {
+  const { data, error } = await supabase
+    .from('clientes')
+    .select('id, nombre, telefono, saldo_pendiente')
+    .order('nombre');
+
+  if (error) {
+    toast('No se pudo cargar la lista de clientes.', 'error');
+    return;
+  }
+
+  renderClientesList(data || []);
+}
+
+function renderClientesList(clientes) {
+  const list = document.getElementById('clientes-list');
+  const empty = document.getElementById('clientes-empty');
+
+  list.innerHTML = '';
+  empty.style.display = clientes.length === 0 ? 'block' : 'none';
+
+  clientes.forEach((cliente) => {
+    const saldo = Number(cliente.saldo_pendiente) || 0;
+    const item = document.createElement('div');
+    item.className = 'list-item';
+    item.innerHTML = `
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(cliente.nombre)}</div>
+        <div class="li-sub">${cliente.telefono ? escapeHtml(cliente.telefono) : 'Sin teléfono'}</div>
+      </div>
+      <div class="li-badge ${saldo > 0 ? 'pendiente' : 'al-dia'}">
+        ${saldo > 0 ? money.format(saldo) : 'Al día'}
+      </div>
+    `;
+    item.addEventListener('click', () => openClienteForm(cliente));
+    list.appendChild(item);
+  });
+}
+
+function openClienteForm(cliente = null) {
+  clienteEditId = cliente ? cliente.id : null;
+  document.getElementById('cliente-form-title').textContent = cliente ? 'Editar cliente' : 'Nuevo cliente';
+  document.getElementById('cliente-nombre').value = cliente ? cliente.nombre : '';
+  document.getElementById('cliente-telefono').value = cliente ? (cliente.telefono || '') : '';
+  document.getElementById('cliente-form-error').textContent = '';
+  document.getElementById('cliente-sheet').classList.add('show');
+}
+
+function closeClienteForm() {
+  document.getElementById('cliente-sheet').classList.remove('show');
+}
+
+async function saveCliente() {
+  if (!assertOnline()) return;
+
+  const nombre = document.getElementById('cliente-nombre').value.trim();
+  const telefono = document.getElementById('cliente-telefono').value.trim();
+  const errorEl = document.getElementById('cliente-form-error');
+  const saveBtn = document.getElementById('cliente-guardar');
+
+  errorEl.textContent = '';
+
+  if (!nombre) {
+    errorEl.textContent = 'El nombre es obligatorio.';
+    return;
+  }
+
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Guardando...';
+
+  try {
+    const payload = { nombre, telefono: telefono || null };
+    const query = clienteEditId
+      ? supabase.from('clientes').update(payload).eq('id', clienteEditId)
+      : supabase.from('clientes').insert(payload);
+
+    const { error } = await query;
+
+    if (error) {
+      if (error.code === '23505') {
+        errorEl.textContent =
+          'Ya existe un cliente con ese nombre. Si es una persona distinta, diferéncialo ' +
+          'con un apodo o inicial (ej. "Juan Pérez (papelería)").';
+      } else {
+        errorEl.textContent = 'No se pudo guardar. Intenta de nuevo.';
+      }
+      return;
+    }
+
+    closeClienteForm();
+    toast(clienteEditId ? 'Cliente actualizado.' : 'Cliente agregado.');
+    loadClientes();
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Guardar';
+  }
+}
+
+function initClientes() {
+  document.getElementById('fab-nuevo-cliente').addEventListener('click', () => openClienteForm());
+  document.getElementById('cliente-cancelar').addEventListener('click', closeClienteForm);
+  document.getElementById('cliente-guardar').addEventListener('click', saveCliente);
+}
+
+// ---------- Inventario ----------
+
+let productosCache = [];
+let categoriaFiltroActual = null;
+let productoEditId = null;
+let productoFotoUrlActual = null;
+
+function escapeAttr(str) {
+  return String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+async function loadProductos() {
+  const { data, error } = await supabase
+    .from('productos')
+    .select('id, nombre, precio, foto_url, stock, categoria')
+    .order('nombre');
+
+  if (error) {
+    toast('No se pudo cargar el inventario.', 'error');
+    return;
+  }
+
+  productosCache = data || [];
+  renderFiltrosCategoria();
+  renderProductosGrid();
+}
+
+function renderFiltrosCategoria() {
+  const categorias = [...new Set(productosCache.map((p) => p.categoria).filter(Boolean))].sort();
+  const cont = document.getElementById('inventario-filtros');
+  cont.innerHTML = '';
+
+  if (categorias.length === 0) {
+    categoriaFiltroActual = null;
+    return;
+  }
+
+  const chips = ['Todos', ...categorias];
+  chips.forEach((cat) => {
+    const isTodos = cat === 'Todos';
+    const btn = document.createElement('button');
+    btn.className = 'chip' + ((isTodos && !categoriaFiltroActual) || cat === categoriaFiltroActual ? ' active' : '');
+    btn.textContent = cat;
+    btn.addEventListener('click', () => {
+      categoriaFiltroActual = isTodos ? null : cat;
+      renderFiltrosCategoria();
+      renderProductosGrid();
+    });
+    cont.appendChild(btn);
+  });
+}
+
+function renderProductosGrid() {
+  const grid = document.getElementById('inventario-grid');
+  const empty = document.getElementById('inventario-empty');
+  const productos = categoriaFiltroActual
+    ? productosCache.filter((p) => p.categoria === categoriaFiltroActual)
+    : productosCache;
+
+  grid.innerHTML = '';
+  empty.style.display = productosCache.length === 0 ? 'block' : 'none';
+
+  productos.forEach((p) => {
+    const card = document.createElement('div');
+    card.className = 'product-card';
+    card.innerHTML = `
+      <div class="product-photo" style="background-image:url('${escapeAttr(p.foto_url)}')"></div>
+      <div class="product-info">
+        <div class="li-title">${escapeHtml(p.nombre)}</div>
+        ${p.categoria ? `<div class="li-sub">${escapeHtml(p.categoria)}</div>` : ''}
+        <div class="product-stock">Stock: ${Number(p.stock)}</div>
+        <div class="product-precio">${money.format(Number(p.precio))}</div>
+      </div>
+    `;
+    card.addEventListener('click', () => openProductoForm(p));
+    grid.appendChild(card);
+  });
+}
+
+function openProductoForm(producto = null) {
+  productoEditId = producto ? producto.id : null;
+  productoFotoUrlActual = producto ? producto.foto_url : null;
+
+  document.getElementById('producto-form-title').textContent = producto ? 'Editar producto' : 'Nuevo producto';
+  document.getElementById('producto-nombre').value = producto ? producto.nombre : '';
+  document.getElementById('producto-precio').value = producto ? producto.precio : '';
+  document.getElementById('producto-stock').value = producto ? producto.stock : '';
+  document.getElementById('producto-categoria').value = producto ? (producto.categoria || '') : '';
+  document.getElementById('producto-foto').value = '';
+  document.getElementById('producto-form-error').textContent = '';
+
+  const preview = document.getElementById('producto-foto-preview');
+  if (producto && producto.foto_url) {
+    preview.src = producto.foto_url;
+    preview.style.display = 'block';
+  } else {
+    preview.style.display = 'none';
+  }
+
+  document.getElementById('producto-sheet').classList.add('show');
+}
+
+function closeProductoForm() {
+  document.getElementById('producto-sheet').classList.remove('show');
+}
+
+function handleFotoChange(event) {
+  const file = event.target.files && event.target.files[0];
+  const preview = document.getElementById('producto-foto-preview');
+  if (!file) return;
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = 'block';
+}
+
+async function saveProducto() {
+  if (!assertOnline()) return;
+
+  const nombre = document.getElementById('producto-nombre').value.trim();
+  const precio = parseFloat(document.getElementById('producto-precio').value);
+  const stock = parseInt(document.getElementById('producto-stock').value, 10);
+  const categoria = document.getElementById('producto-categoria').value.trim();
+  const fileInput = document.getElementById('producto-foto');
+  const file = fileInput.files && fileInput.files[0];
+  const errorEl = document.getElementById('producto-form-error');
+  const saveBtn = document.getElementById('producto-guardar');
+
+  errorEl.textContent = '';
+
+  if (!nombre) {
+    errorEl.textContent = 'El nombre es obligatorio.';
+    return;
+  }
+  if (!Number.isFinite(precio) || precio <= 0) {
+    errorEl.textContent = 'El precio es obligatorio y debe ser mayor a $0.';
+    return;
+  }
+  if (!Number.isInteger(stock) || stock < 0) {
+    errorEl.textContent = 'El stock es obligatorio y debe ser un número entero, 0 o mayor.';
+    return;
+  }
+  if (!file && !productoFotoUrlActual) {
+    errorEl.textContent = 'La foto es obligatoria.';
+    return;
+  }
+
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Guardando...';
+
+  try {
+    let fotoUrl = productoFotoUrlActual;
+
+    if (file) {
+      const path = `${crypto.randomUUID()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage.from('productos').upload(path, file);
+      if (uploadError) {
+        errorEl.textContent = 'No se pudo subir la foto. Intenta de nuevo.';
+        return;
+      }
+      const { data: urlData } = supabase.storage.from('productos').getPublicUrl(path);
+      fotoUrl = urlData.publicUrl;
+    }
+
+    const payload = { nombre, precio, stock, categoria: categoria || null, foto_url: fotoUrl };
+    const query = productoEditId
+      ? supabase.from('productos').update(payload).eq('id', productoEditId)
+      : supabase.from('productos').insert(payload);
+
+    const { error } = await query;
+
+    if (error) {
+      errorEl.textContent = 'No se pudo guardar. Intenta de nuevo.';
+      return;
+    }
+
+    closeProductoForm();
+    toast(productoEditId ? 'Producto actualizado.' : 'Producto agregado.');
+    loadProductos();
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Guardar';
+  }
+}
+
+function initInventario() {
+  document.getElementById('fab-nuevo-producto').addEventListener('click', () => openProductoForm());
+  document.getElementById('producto-cancelar').addEventListener('click', closeProductoForm);
+  document.getElementById('producto-guardar').addEventListener('click', saveProducto);
+  document.getElementById('producto-foto').addEventListener('change', handleFotoChange);
+}
+
+// ---------- Ventas ----------
+
+const fechaFmt = new Intl.DateTimeFormat('es-MX', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+});
+
+let ventaCarrito = new Map(); // producto_id -> { producto, cantidad }
+let ventaProductosCache = [];
+let ventaTipo = 'contado';
+
+function setVentaTipo(tipo) {
+  ventaTipo = tipo;
+  document.querySelectorAll('.toggle-btn[data-tipo]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.tipo === tipo);
+  });
+  document.getElementById('venta-enganche-field').style.display = tipo === 'credito' ? 'block' : 'none';
+  document.getElementById('venta-cliente-label').textContent =
+    tipo === 'credito' ? 'Cliente (obligatorio)' : 'Cliente (opcional)';
+}
+
+async function openVentaPanel() {
+  ventaCarrito = new Map();
+  setVentaTipo('contado');
+  document.getElementById('venta-enganche').value = '';
+  document.getElementById('venta-error').textContent = '';
+  document.getElementById('venta-paso-recibo').style.display = 'none';
+  document.getElementById('venta-paso-armar').style.display = 'block';
+
+  const [{ data: productos, error: prodError }, { data: clientes, error: cliError }] = await Promise.all([
+    supabase.from('productos').select('id, nombre, precio, stock').order('nombre'),
+    supabase.from('clientes').select('id, nombre').order('nombre'),
+  ]);
+
+  if (prodError || cliError) {
+    toast('No se pudo cargar productos/clientes.', 'error');
+    return;
+  }
+
+  ventaProductosCache = productos || [];
+
+  const clienteSelect = document.getElementById('venta-cliente');
+  clienteSelect.innerHTML = '<option value="">Sin cliente</option>';
+  (clientes || []).forEach((c) => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = c.nombre;
+    clienteSelect.appendChild(opt);
+  });
+
+  renderVentaProductos();
+  renderVentaCarrito();
+
+  document.getElementById('venta-panel').classList.add('show');
+}
+
+function closeVentaPanel() {
+  document.getElementById('venta-panel').classList.remove('show');
+}
+
+function cantidadEnCarrito(productoId) {
+  const entry = ventaCarrito.get(productoId);
+  return entry ? entry.cantidad : 0;
+}
+
+function renderVentaProductos() {
+  const list = document.getElementById('venta-productos-list');
+  const empty = document.getElementById('venta-productos-empty');
+  list.innerHTML = '';
+  empty.style.display = ventaProductosCache.length === 0 ? 'block' : 'none';
+
+  ventaProductosCache.forEach((p) => {
+    const disponible = p.stock - cantidadEnCarrito(p.id);
+    const item = document.createElement('div');
+    item.className = 'list-item' + (disponible <= 0 ? ' disabled' : '');
+    item.innerHTML = `
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(p.nombre)}</div>
+        <div class="li-sub">${money.format(Number(p.precio))} · Stock disponible: ${disponible}</div>
+      </div>
+    `;
+    if (disponible > 0) {
+      item.addEventListener('click', () => addToCarrito(p));
+    }
+    list.appendChild(item);
+  });
+}
+
+function addToCarrito(producto) {
+  const actual = cantidadEnCarrito(producto.id);
+  if (actual + 1 > producto.stock) {
+    toast('No hay suficiente stock de este producto.', 'error');
+    return;
+  }
+  ventaCarrito.set(producto.id, { producto, cantidad: actual + 1 });
+  renderVentaProductos();
+  renderVentaCarrito();
+}
+
+function decrementarCarrito(productoId) {
+  const entry = ventaCarrito.get(productoId);
+  if (!entry) return;
+  if (entry.cantidad <= 1) {
+    ventaCarrito.delete(productoId);
+  } else {
+    entry.cantidad -= 1;
+  }
+  renderVentaProductos();
+  renderVentaCarrito();
+}
+
+function renderVentaCarrito() {
+  const list = document.getElementById('venta-carrito-list');
+  const vacio = document.getElementById('venta-carrito-vacio');
+  list.innerHTML = '';
+  vacio.style.display = ventaCarrito.size === 0 ? 'block' : 'none';
+
+  let total = 0;
+
+  ventaCarrito.forEach(({ producto, cantidad }) => {
+    const subtotal = Number(producto.precio) * cantidad;
+    total += subtotal;
+
+    const item = document.createElement('div');
+    item.className = 'list-item';
+    item.innerHTML = `
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(producto.nombre)}</div>
+        <div class="li-sub">${cantidad} × ${money.format(Number(producto.precio))} = ${money.format(subtotal)}</div>
+      </div>
+      <div class="qty-controls">
+        <button type="button" class="qty-btn" data-action="menos">−</button>
+        <button type="button" class="qty-btn" data-action="mas">+</button>
+      </div>
+    `;
+    item.querySelector('[data-action="menos"]').addEventListener('click', (e) => {
+      e.stopPropagation();
+      decrementarCarrito(producto.id);
+    });
+    item.querySelector('[data-action="mas"]').addEventListener('click', (e) => {
+      e.stopPropagation();
+      addToCarrito(producto);
+    });
+    list.appendChild(item);
+  });
+
+  document.getElementById('venta-total').textContent = money.format(total);
+}
+
+async function confirmarVenta() {
+  if (!assertOnline()) return;
+
+  const errorEl = document.getElementById('venta-error');
+  const confirmBtn = document.getElementById('venta-confirmar');
+  errorEl.textContent = '';
+
+  if (ventaCarrito.size === 0) {
+    errorEl.textContent = 'Agrega al menos un producto al carrito.';
+    return;
+  }
+
+  const session = getSession();
+  const clienteId = document.getElementById('venta-cliente').value || null;
+  const clienteNombre = clienteId
+    ? document.getElementById('venta-cliente').selectedOptions[0].textContent
+    : null;
+
+  if (ventaTipo === 'credito' && !clienteId) {
+    errorEl.textContent = 'La venta a crédito requiere un cliente.';
+    return;
+  }
+
+  const totalCarrito = [...ventaCarrito.values()]
+    .reduce((sum, { producto, cantidad }) => sum + Number(producto.precio) * cantidad, 0);
+
+  let enganche = 0;
+  if (ventaTipo === 'credito') {
+    const rawEnganche = document.getElementById('venta-enganche').value;
+    enganche = rawEnganche === '' ? 0 : parseFloat(rawEnganche);
+    if (!Number.isFinite(enganche) || enganche < 0 || enganche > totalCarrito) {
+      errorEl.textContent = 'El enganche debe ser entre $0 y el total de la venta.';
+      return;
+    }
+  }
+
+  const items = [...ventaCarrito.values()].map(({ producto, cantidad }) => ({
+    producto_id: producto.id,
+    cantidad,
+  }));
+  const itemsParaRecibo = [...ventaCarrito.values()];
+
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = 'Registrando...';
+
+  try {
+    const { data, error } = await supabase.rpc('registrar_venta', {
+      p_tipo: ventaTipo,
+      p_cliente_id: clienteId,
+      p_vendedor_id: session.id,
+      p_enganche: enganche,
+      p_items: items,
+    });
+
+    if (error) {
+      if ((error.message || '').includes('STOCK_INSUFICIENTE')) {
+        errorEl.textContent = 'Uno de los productos ya no tiene stock suficiente. Actualiza el carrito.';
+      } else {
+        errorEl.textContent = 'No se pudo registrar la venta. Intenta de nuevo.';
+      }
+      return;
+    }
+
+    const resultado = data[0];
+    let saldoResultante = null;
+
+    if (ventaTipo === 'credito') {
+      const { data: clienteData } = await supabase
+        .from('clientes')
+        .select('saldo_pendiente')
+        .eq('id', clienteId)
+        .single();
+      saldoResultante = clienteData ? Number(clienteData.saldo_pendiente) : null;
+    }
+
+    mostrarReciboVenta({
+      folio: resultado.folio,
+      total: Number(resultado.total),
+      tipo: ventaTipo,
+      enganche,
+      saldoResultante,
+      cliente: clienteNombre,
+      vendedor: session.nombre,
+      fecha: new Date(),
+      items: itemsParaRecibo,
+    });
+
+    loadProductos();
+    loadClientes();
+  } finally {
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = 'Confirmar venta';
+  }
+}
+
+function mostrarReciboVenta(info) {
+  const cont = document.getElementById('venta-recibo-contenido');
+  const lineasProductos = info.items
+    .map(({ producto, cantidad }) => `
+      <div class="recibo-linea">
+        <span>${cantidad} × ${escapeHtml(producto.nombre)}</span>
+        <span>${money.format(Number(producto.precio) * cantidad)}</span>
+      </div>
+    `)
+    .join('');
+
+  const lineasCredito = info.tipo === 'credito'
+    ? `
+      <div class="recibo-linea"><span>Enganche</span><span>${money.format(info.enganche)}</span></div>
+      <div class="recibo-linea"><span>Saldo pendiente del cliente</span><span>${money.format(info.saldoResultante ?? 0)}</span></div>
+    `
+    : '';
+
+  cont.innerHTML = `
+    <div class="recibo-linea"><span>Folio</span><span>${escapeHtml(info.folio)}</span></div>
+    <div class="recibo-linea"><span>Fecha</span><span>${fechaFmt.format(info.fecha)}</span></div>
+    <div class="recibo-linea"><span>Vendedor</span><span>${escapeHtml(info.vendedor)}</span></div>
+    <div class="recibo-linea"><span>Cliente</span><span>${info.cliente ? escapeHtml(info.cliente) : 'Sin cliente'}</span></div>
+    <div class="recibo-linea"><span>Tipo</span><span>${info.tipo === 'credito' ? 'Crédito' : 'Contado'}</span></div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
+    ${lineasProductos}
+    <div class="recibo-linea total"><span>Total</span><span>${money.format(info.total)}</span></div>
+    ${lineasCredito}
+  `;
+
+  document.getElementById('venta-paso-armar').style.display = 'none';
+  document.getElementById('venta-paso-recibo').style.display = 'block';
+}
+
+function initVentas() {
+  document.getElementById('btn-nueva-venta').addEventListener('click', openVentaPanel);
+  document.getElementById('venta-cerrar').addEventListener('click', closeVentaPanel);
+  document.getElementById('venta-confirmar').addEventListener('click', confirmarVenta);
+  document.getElementById('venta-recibo-cerrar').addEventListener('click', closeVentaPanel);
+  document.querySelectorAll('.toggle-btn[data-tipo]').forEach((btn) => {
+    btn.addEventListener('click', () => setVentaTipo(btn.dataset.tipo));
+  });
+}
+
+// ---------- Abonos ----------
+
+let abonoClientesCache = [];
+
+async function openAbonoPanel() {
+  document.getElementById('abono-error').textContent = '';
+  document.getElementById('abono-monto').value = '';
+  document.getElementById('abono-saldo-actual').style.display = 'none';
+  document.getElementById('abono-paso-recibo').style.display = 'none';
+  document.getElementById('abono-paso-armar').style.display = 'block';
+
+  const { data, error } = await supabase
+    .from('clientes')
+    .select('id, nombre, saldo_pendiente')
+    .gt('saldo_pendiente', 0)
+    .order('nombre');
+
+  if (error) {
+    toast('No se pudo cargar la lista de clientes.', 'error');
+    return;
+  }
+
+  abonoClientesCache = data || [];
+
+  const select = document.getElementById('abono-cliente');
+  select.innerHTML = '<option value="">Selecciona un cliente con saldo pendiente</option>';
+  abonoClientesCache.forEach((c) => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = `${c.nombre} — ${money.format(Number(c.saldo_pendiente))}`;
+    select.appendChild(opt);
+  });
+
+  document.getElementById('abono-panel').classList.add('show');
+}
+
+function closeAbonoPanel() {
+  document.getElementById('abono-panel').classList.remove('show');
+}
+
+function handleAbonoClienteChange() {
+  const clienteId = document.getElementById('abono-cliente').value;
+  const cliente = abonoClientesCache.find((c) => c.id === clienteId);
+  const saldoEl = document.getElementById('abono-saldo-actual');
+
+  if (cliente) {
+    saldoEl.textContent = `Saldo pendiente actual: ${money.format(Number(cliente.saldo_pendiente))}`;
+    saldoEl.style.display = 'block';
+    document.getElementById('abono-monto').max = cliente.saldo_pendiente;
+  } else {
+    saldoEl.style.display = 'none';
+  }
+}
+
+async function confirmarAbono() {
+  if (!assertOnline()) return;
+
+  const errorEl = document.getElementById('abono-error');
+  const confirmBtn = document.getElementById('abono-confirmar');
+  errorEl.textContent = '';
+
+  const clienteId = document.getElementById('abono-cliente').value;
+  const cliente = abonoClientesCache.find((c) => c.id === clienteId);
+  const monto = parseFloat(document.getElementById('abono-monto').value);
+
+  if (!clienteId) {
+    errorEl.textContent = 'Selecciona un cliente.';
+    return;
+  }
+  if (!Number.isFinite(monto) || monto <= 0) {
+    errorEl.textContent = 'El monto debe ser mayor a $0.';
+    return;
+  }
+  if (cliente && monto > Number(cliente.saldo_pendiente)) {
+    errorEl.textContent = `El monto no puede ser mayor al saldo pendiente (${money.format(Number(cliente.saldo_pendiente))}).`;
+    return;
+  }
+
+  const session = getSession();
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = 'Registrando...';
+
+  try {
+    const { data, error } = await supabase.rpc('registrar_abono', {
+      p_cliente_id: clienteId,
+      p_vendedor_id: session.id,
+      p_monto: monto,
+    });
+
+    if (error) {
+      if ((error.message || '').includes('MONTO_MAYOR_A_SALDO')) {
+        errorEl.textContent = 'El monto no puede ser mayor al saldo pendiente del cliente.';
+      } else {
+        errorEl.textContent = 'No se pudo registrar el abono. Intenta de nuevo.';
+      }
+      return;
+    }
+
+    const resultado = data[0];
+    mostrarReciboAbono({
+      folio: resultado.folio,
+      monto,
+      saldoRestante: Number(resultado.saldo_restante),
+      cliente: cliente ? cliente.nombre : '',
+      vendedor: session.nombre,
+      fecha: new Date(),
+    });
+
+    loadClientes();
+  } finally {
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = 'Confirmar abono';
+  }
+}
+
+function mostrarReciboAbono(info) {
+  const cont = document.getElementById('abono-recibo-contenido');
+  cont.innerHTML = `
+    <div class="recibo-linea"><span>Folio</span><span>${escapeHtml(info.folio)}</span></div>
+    <div class="recibo-linea"><span>Fecha</span><span>${fechaFmt.format(info.fecha)}</span></div>
+    <div class="recibo-linea"><span>Vendedor</span><span>${escapeHtml(info.vendedor)}</span></div>
+    <div class="recibo-linea"><span>Cliente</span><span>${escapeHtml(info.cliente)}</span></div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
+    <div class="recibo-linea total"><span>Monto abonado</span><span>${money.format(info.monto)}</span></div>
+    <div class="recibo-linea"><span>Saldo pendiente restante</span><span>${money.format(info.saldoRestante)}</span></div>
+  `;
+
+  document.getElementById('abono-paso-armar').style.display = 'none';
+  document.getElementById('abono-paso-recibo').style.display = 'block';
+}
+
+function initAbonos() {
+  document.getElementById('btn-nuevo-abono').addEventListener('click', openAbonoPanel);
+  document.getElementById('abono-cerrar').addEventListener('click', closeAbonoPanel);
+  document.getElementById('abono-cliente').addEventListener('change', handleAbonoClienteChange);
+  document.getElementById('abono-confirmar').addEventListener('click', confirmarAbono);
+  document.getElementById('abono-recibo-cerrar').addEventListener('click', closeAbonoPanel);
+}
+
+// ---------- Init ----------
+
+function init() {
+  document.getElementById('login-form').addEventListener('submit', handleLogin);
+  document.getElementById('btn-logout').addEventListener('click', handleLogout);
+  initNav();
+  initClientes();
+  initInventario();
+  initVentas();
+  initAbonos();
+
+  const session = getSession();
+  if (session) {
+    renderMain(session);
+  } else {
+    showView('view-login');
+  }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  }
+}
+
+init();

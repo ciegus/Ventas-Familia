@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Lima's Sales</title>
+  <meta name="theme-color" content="#12233F" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ============ LOGIN ============ -->
+  <section id="view-login" class="view active">
+    <div class="login-card">
+      <div class="login-icon"><img src="icon.svg" alt="" /></div>
+      <h1>Lima's Sales</h1>
+      <p class="brand-sub">Gestión de ventas del negocio</p>
+
+      <form id="login-form" autocomplete="off">
+        <div class="field">
+          <label for="login-nombre">Usuario</label>
+          <select id="login-nombre" required>
+            <option value="" disabled selected>Selecciona tu nombre</option>
+            <option value="Papá">Papá</option>
+            <option value="Angie">Angie</option>
+            <option value="Alexa">Alexa</option>
+            <option value="Alexis">Alexis</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="login-password">Contraseña</label>
+          <input id="login-password" type="password" required />
+        </div>
+        <p id="login-error" class="error-msg"></p>
+        <button id="login-submit" type="submit" class="btn btn-primary">Entrar</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ MAIN ============ -->
+  <section id="view-main" class="view">
+    <div class="topbar">
+      <div class="brand">
+        <img src="icon.svg" alt="" />
+        <div class="who">
+          <h2 id="main-nombre">—</h2>
+          <span id="main-rol">—</span>
+        </div>
+      </div>
+      <button id="btn-logout" class="btn btn-ghost">Salir</button>
+    </div>
+
+    <div class="content">
+      <!-- Inicio -->
+      <div id="tab-inicio" class="tab-panel active">
+        <button id="btn-nueva-venta" class="quick-action">
+          <span class="quick-action-icon">🛒</span>
+          Nueva venta
+        </button>
+        <button id="btn-nuevo-abono" class="quick-action quick-action-alt">
+          <span class="quick-action-icon">💵</span>
+          Nuevo abono
+        </button>
+        <p class="placeholder">
+          El resto del dashboard (ventas/abonos del día, clientes con saldo) se
+          construye en el ticket 10 de TICKETS.md.
+        </p>
+      </div>
+
+      <!-- Inventario -->
+      <div id="tab-inventario" class="tab-panel">
+        <div id="inventario-filtros" class="chip-row"></div>
+        <div id="inventario-grid" class="product-grid"></div>
+        <p id="inventario-empty" class="tab-placeholder" style="display:none;">
+          Aún no hay productos. Usa el botón + para agregar el primero.
+        </p>
+      </div>
+
+      <!-- Clientes -->
+      <div id="tab-clientes" class="tab-panel">
+        <div id="clientes-list" class="list"></div>
+        <p id="clientes-empty" class="tab-placeholder" style="display:none;">
+          Aún no hay clientes registrados. Usa el botón + para agregar el primero.
+        </p>
+      </div>
+
+      <!-- Reportes -->
+      <div id="tab-reportes" class="tab-panel">
+        <p class="tab-placeholder">Reportes se construye en el ticket 11 de TICKETS.md.</p>
+      </div>
+    </div>
+
+    <nav class="bottom-nav">
+      <button class="nav-btn active" data-tab="inicio">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>
+        Inicio
+      </button>
+      <button class="nav-btn" data-tab="inventario">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
+        Inventario
+      </button>
+      <button class="nav-btn" data-tab="clientes">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5"/><circle cx="17" cy="8" r="2.8"/><path d="M15.5 13.7c2.9.5 5 3 5 6.3"/></svg>
+        Clientes
+      </button>
+      <button class="nav-btn" data-tab="reportes">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"/><path d="M12 20V4"/><path d="M20 20v-7"/></svg>
+        Reportes
+      </button>
+    </nav>
+
+    <button id="fab-nuevo-cliente" class="fab" data-fab-for="clientes">+</button>
+    <button id="fab-nuevo-producto" class="fab" data-fab-for="inventario">+</button>
+  </section>
+
+  <!-- ============ Formulario cliente (bottom sheet) ============ -->
+  <div id="cliente-sheet" class="sheet-overlay">
+    <div class="sheet">
+      <h3 id="cliente-form-title">Nuevo cliente</h3>
+      <div class="field">
+        <label for="cliente-nombre">Nombre</label>
+        <input id="cliente-nombre" type="text" placeholder="Ej. Juan Pérez" />
+      </div>
+      <div class="field">
+        <label for="cliente-telefono">Teléfono (opcional)</label>
+        <input id="cliente-telefono" type="tel" placeholder="Ej. 686 123 4567" />
+      </div>
+      <p id="cliente-form-error" class="error-msg"></p>
+      <div class="sheet-actions">
+        <button id="cliente-cancelar" type="button" class="btn btn-outline">Cancelar</button>
+        <button id="cliente-guardar" type="button" class="btn btn-primary">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Formulario producto (bottom sheet) ============ -->
+  <div id="producto-sheet" class="sheet-overlay">
+    <div class="sheet">
+      <h3 id="producto-form-title">Nuevo producto</h3>
+      <div class="field">
+        <label for="producto-nombre">Nombre</label>
+        <input id="producto-nombre" type="text" placeholder="Ej. Playera polo azul" />
+      </div>
+      <div class="field">
+        <label for="producto-precio">Precio (MXN)</label>
+        <input id="producto-precio" type="number" step="0.01" min="0" placeholder="0.00" />
+      </div>
+      <div class="field">
+        <label for="producto-stock">Stock</label>
+        <input id="producto-stock" type="number" step="1" min="0" placeholder="0" />
+      </div>
+      <div class="field">
+        <label for="producto-categoria">Categoría (opcional)</label>
+        <input id="producto-categoria" type="text" placeholder="Ej. Ropa" />
+      </div>
+      <div class="field">
+        <label for="producto-foto">Foto</label>
+        <input id="producto-foto" type="file" accept="image/*" />
+        <img id="producto-foto-preview" style="display:none;" alt="" />
+      </div>
+      <p id="producto-form-error" class="error-msg"></p>
+      <div class="sheet-actions">
+        <button id="producto-cancelar" type="button" class="btn btn-outline">Cancelar</button>
+        <button id="producto-guardar" type="button" class="btn btn-primary">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Panel Nueva venta (fullscreen) ============ -->
+  <div id="venta-panel" class="fullscreen-overlay">
+    <div class="fs-header">
+      <button id="venta-cerrar" class="icon-btn" type="button">✕</button>
+      <h3>Nueva venta</h3>
+      <span style="width:32px"></span>
+    </div>
+
+    <div class="fs-content">
+      <!-- Paso: armar venta -->
+      <div id="venta-paso-armar">
+        <div class="field">
+          <label>Tipo de venta</label>
+          <div class="toggle-group">
+            <button type="button" class="toggle-btn active" data-tipo="contado">Contado</button>
+            <button type="button" class="toggle-btn" data-tipo="credito">Crédito</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="venta-cliente" id="venta-cliente-label">Cliente (opcional)</label>
+          <select id="venta-cliente">
+            <option value="">Sin cliente</option>
+          </select>
+        </div>
+
+        <div class="field" id="venta-enganche-field" style="display:none;">
+          <label for="venta-enganche">Enganche recibido (opcional, $0 hasta el total)</label>
+          <input id="venta-enganche" type="number" step="0.01" min="0" placeholder="0.00" />
+        </div>
+
+        <h4 class="fs-subtitle">Productos disponibles</h4>
+        <div id="venta-productos-list" class="list"></div>
+        <p id="venta-productos-empty" class="tab-placeholder" style="display:none;">
+          No hay productos en inventario. Agrega alguno en la pestaña Inventario.
+        </p>
+
+        <h4 class="fs-subtitle">Carrito</h4>
+        <div id="venta-carrito-list" class="list"></div>
+        <p id="venta-carrito-vacio" class="tab-placeholder">Toca un producto para agregarlo.</p>
+
+        <div class="venta-total-row">
+          <span>Total</span>
+          <strong id="venta-total">$0.00</strong>
+        </div>
+
+        <p id="venta-error" class="error-msg"></p>
+        <button id="venta-confirmar" class="btn btn-primary">Confirmar venta</button>
+      </div>
+
+      <!-- Paso: recibo -->
+      <div id="venta-paso-recibo" style="display:none;">
+        <div class="card" id="venta-recibo-contenido"></div>
+        <button id="venta-recibo-cerrar" class="btn btn-primary">Listo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Panel Nuevo abono (fullscreen) ============ -->
+  <div id="abono-panel" class="fullscreen-overlay">
+    <div class="fs-header">
+      <button id="abono-cerrar" class="icon-btn" type="button">✕</button>
+      <h3>Nuevo abono</h3>
+      <span style="width:32px"></span>
+    </div>
+
+    <div class="fs-content">
+      <!-- Paso: armar abono -->
+      <div id="abono-paso-armar">
+        <div class="field">
+          <label for="abono-cliente">Cliente</label>
+          <select id="abono-cliente">
+            <option value="">Selecciona un cliente con saldo pendiente</option>
+          </select>
+        </div>
+
+        <p id="abono-saldo-actual" class="tab-placeholder" style="display:none; padding: 0 0 16px; text-align:left;"></p>
+
+        <div class="field">
+          <label for="abono-monto">Monto a abonar (MXN)</label>
+          <input id="abono-monto" type="number" step="0.01" min="0" placeholder="0.00" />
+        </div>
+
+        <p id="abono-error" class="error-msg"></p>
+        <button id="abono-confirmar" class="btn btn-primary">Confirmar abono</button>
+      </div>
+
+      <!-- Paso: recibo -->
+      <div id="abono-paso-recibo" style="display:none;">
+        <div class="card" id="abono-recibo-contenido"></div>
+        <button id="abono-recibo-cerrar" class="btn btn-primary">Listo</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
