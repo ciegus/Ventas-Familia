@@ -261,15 +261,28 @@ flujo al 100% en producción.
 
 ---
 
-## 10 — Dashboard principal
+## 10 — Dashboard principal ✅
 
 **Blocked by:** 06, 07
 
 **Qué construye:** pantalla de inicio combinada, idéntica para los 4 usuarios.
 
-- [ ] Ventas y abonos del día (de todo el negocio, no solo del usuario logueado)
-- [ ] Clientes con saldo pendiente (para saber a quién cobrar)
-- [ ] Accesos rápidos: "Nueva venta", "Nuevo abono"
+**Estado:** completado — pestaña Inicio agrega, debajo de los accesos rápidos ya
+existentes, dos tarjetas de estadística ("Ventas de hoy" / "Abonos de hoy" con monto
+total y contador, excluyendo registros anulados) y la lista "Clientes con saldo
+pendiente" (ordenada de mayor a menor saldo). `loadDashboard()` se dispara al entrar
+a la pestaña Inicio (mismo patrón que `loadClientes()`/`loadProductos()` en las otras
+pestañas) y también se refresca inmediatamente tras confirmar una venta, un abono o
+una anulación, para que el usuario no vea números viejos al volver a Inicio sin
+cambiar de pestaña. "Hoy" se calcula con la medianoche local del dispositivo.
+Probado en navegador: cifras coinciden con los datos reales en Supabase (8 ventas
+$2,250.00 / 5 abonos $800.00 / cliente con saldo $250.00), estilos de las tarjetas
+aplicados correctamente, sin errores de consola, refresco correcto al cambiar de
+pestaña y volver.
+
+- [x] Ventas y abonos del día (de todo el negocio, no solo del usuario logueado)
+- [x] Clientes con saldo pendiente (para saber a quién cobrar)
+- [x] Accesos rápidos: "Nueva venta", "Nuevo abono"
 
 ---
 
