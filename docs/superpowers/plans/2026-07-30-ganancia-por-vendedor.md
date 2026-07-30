@@ -179,7 +179,7 @@ begin
   v_pago_inmediato := case when p_tipo = 'credito' then v_enganche else v_total end;
 
   if v_pago_inmediato > 0 then
-    v_utilidad := v_pago_inmediato - (v_costo_total * (v_pago_inmediato / v_total));
+    v_utilidad := round(v_pago_inmediato - (v_costo_total * (v_pago_inmediato / v_total)), 2);
     insert into venta_pagos (venta_id, abono_id, monto, utilidad_realizada)
     values (v_venta_id, null, v_pago_inmediato, v_utilidad);
   end if;
@@ -339,7 +339,7 @@ begin
 
     v_aplicado := least(v_restante, v_venta.saldo_pendiente_venta);
     v_ratio := (v_venta.total - v_venta.costo_total) / v_venta.total;
-    v_utilidad := v_aplicado * v_ratio;
+    v_utilidad := round(v_aplicado * v_ratio, 2);
 
     insert into venta_pagos (venta_id, abono_id, monto, utilidad_realizada)
     values (v_venta.id, v_abono_id, v_aplicado, v_utilidad);
