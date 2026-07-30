@@ -773,3 +773,22 @@ body {
   padding: 0;
   line-height: 1;
 }
+
+.carrito-precio-row {
+  margin: 6px 0;
+}
+
+.carrito-precio-row label {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+
+.carrito-precio-input {
+  width: 110px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 14px;
+}

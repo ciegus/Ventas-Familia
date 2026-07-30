@@ -622,7 +622,7 @@ async function openVentaPanel() {
   document.getElementById('venta-paso-armar').style.display = 'block';
 
   const [{ data: productos, error: prodError }, { data: clientes, error: cliError }] = await Promise.all([
-    supabase.from('productos').select('id, nombre, precio, stock').order('nombre'),
+    supabase.from('productos').select('id, nombre, precio, stock, costo').order('nombre'),
     supabase.from('clientes').select('id, nombre').order('nombre'),
   ]);
 
@@ -686,7 +686,9 @@ function addToCarrito(producto) {
     toast('No hay suficiente stock de este producto.', 'error');
     return;
   }
-  ventaCarrito.set(producto.id, { producto, cantidad: actual + 1 });
+  const existente = ventaCarrito.get(producto.id);
+  const precioUnitario = existente ? existente.precioUnitario : Number(producto.precio);
+  ventaCarrito.set(producto.id, { producto, cantidad: actual + 1, precioUnitario });
   renderVentaProductos();
   renderVentaCarrito();
 }
@@ -703,30 +705,59 @@ function decrementarCarrito(productoId) {
   renderVentaCarrito();
 }
 
+function calcularTotalCarrito() {
+  return [...ventaCarrito.values()].reduce((sum, { cantidad, precioUnitario }) => sum + precioUnitario * cantidad, 0);
+}
+
+function actualizarTotalCarritoUI() {
+  document.getElementById('venta-total').textContent = money.format(calcularTotalCarrito());
+}
+
 function renderVentaCarrito() {
   const list = document.getElementById('venta-carrito-list');
   const vacio = document.getElementById('venta-carrito-vacio');
   list.innerHTML = '';
   vacio.style.display = ventaCarrito.size === 0 ? 'block' : 'none';
 
-  let total = 0;
-
-  ventaCarrito.forEach(({ producto, cantidad }) => {
-    const subtotal = Number(producto.precio) * cantidad;
-    total += subtotal;
-
+  ventaCarrito.forEach(({ producto, cantidad, precioUnitario }, productoId) => {
     const item = document.createElement('div');
-    item.className = 'list-item';
+    item.className = 'list-item carrito-item';
     item.innerHTML = `
       <div class="li-main">
         <div class="li-title">${escapeHtml(producto.nombre)}</div>
-        <div class="li-sub">${cantidad} × ${money.format(Number(producto.precio))} = ${money.format(subtotal)}</div>
+        <div class="costo-row">
+          <span class="costo-valor oculto">Costo: ••••</span>
+          <button type="button" class="costo-toggle-btn" aria-label="Mostrar costo">👁</button>
+        </div>
+        <div class="carrito-precio-row">
+          <label>Precio de venta</label>
+          <input type="number" step="0.01" min="0.01" class="carrito-precio-input" value="${precioUnitario}" />
+        </div>
+        <div class="li-sub carrito-subtotal">${cantidad} × ${money.format(precioUnitario)} = ${money.format(precioUnitario * cantidad)}</div>
       </div>
       <div class="qty-controls">
         <button type="button" class="qty-btn" data-action="menos">−</button>
         <button type="button" class="qty-btn" data-action="mas">+</button>
       </div>
     `;
+
+    const costoEl = item.querySelector('.costo-valor');
+    item.querySelector('.costo-toggle-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const oculto = costoEl.classList.toggle('oculto');
+      costoEl.textContent = oculto ? 'Costo: ••••' : `Costo: ${money.format(Number(producto.costo))}`;
+    });
+
+    item.querySelector('.carrito-precio-input').addEventListener('input', (e) => {
+      const nuevoPrecio = parseFloat(e.target.value);
+      const entry = ventaCarrito.get(productoId);
+      if (!entry) return;
+      entry.precioUnitario = Number.isFinite(nuevoPrecio) && nuevoPrecio > 0 ? nuevoPrecio : entry.precioUnitario;
+      item.querySelector('.carrito-subtotal').textContent =
+        `${entry.cantidad} × ${money.format(entry.precioUnitario)} = ${money.format(entry.precioUnitario * entry.cantidad)}`;
+      actualizarTotalCarritoUI();
+    });
+
     item.querySelector('[data-action="menos"]').addEventListener('click', (e) => {
       e.stopPropagation();
       decrementarCarrito(producto.id);
@@ -738,7 +769,7 @@ function renderVentaCarrito() {
     list.appendChild(item);
   });
 
-  document.getElementById('venta-total').textContent = money.format(total);
+  actualizarTotalCarritoUI();
 }
 
 async function confirmarVenta() {
@@ -764,8 +795,7 @@ async function confirmarVenta() {
     return;
   }
 
-  const totalCarrito = [...ventaCarrito.values()]
-    .reduce((sum, { producto, cantidad }) => sum + Number(producto.precio) * cantidad, 0);
+  const totalCarrito = calcularTotalCarrito();
 
   let enganche = 0;
   if (ventaTipo === 'credito') {
@@ -777,9 +807,10 @@ async function confirmarVenta() {
     }
   }
 
-  const items = [...ventaCarrito.values()].map(({ producto, cantidad }) => ({
+  const items = [...ventaCarrito.values()].map(({ producto, cantidad, precioUnitario }) => ({
     producto_id: producto.id,
     cantidad,
+    precio_unitario: precioUnitario,
   }));
   const itemsParaRecibo = [...ventaCarrito.values()];
 
@@ -841,10 +872,10 @@ function mostrarReciboVenta(info) {
   const cont = document.getElementById('venta-recibo-contenido');
   ventaReciboFolioActual = info.folio;
   const lineasProductos = info.items
-    .map(({ producto, cantidad }) => `
+    .map(({ producto, cantidad, precioUnitario }) => `
       <div class="recibo-linea">
         <span>${cantidad} × ${escapeHtml(producto.nombre)}</span>
-        <span>${money.format(Number(producto.precio) * cantidad)}</span>
+        <span>${money.format(precioUnitario * cantidad)}</span>
       </div>
     `)
     .join('');
