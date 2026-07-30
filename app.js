@@ -1190,8 +1190,6 @@ async function confirmarAnular(item, btn) {
         toast('No tienes permiso para anular este registro.', 'error');
       } else if (msg.includes('YA_ANULADO')) {
         toast('Este registro ya estaba anulado.', 'error');
-      } else if (msg.includes('SALDO_INSUFICIENTE_PARA_ANULAR')) {
-        toast('No se puede anular: el cliente ya abonó contra este saldo. Contacta al admin.', 'error');
       } else {
         toast('No se pudo anular. Intenta de nuevo.', 'error');
       }
