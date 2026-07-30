@@ -792,3 +792,67 @@ body {
   border: 1px solid var(--border);
   font-size: 14px;
 }
+
+/* ---------- Reportes ---------- */
+
+.reportes-mes-selector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.icon-btn-alt {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--navy);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.reportes-saldo-total {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--error);
+  margin: 4px 0 14px;
+}
+
+.reportes-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.reportes-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--card);
+  border-radius: 12px;
+  overflow: hidden;
+  font-size: 13px;
+}
+
+.reportes-table th,
+.reportes-table td {
+  padding: 10px 12px;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.reportes-table th {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.reportes-table tbody tr:last-child td {
+  border-bottom: none;
+}

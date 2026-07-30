@@ -126,6 +126,7 @@ function switchTab(tabName) {
   if (tabName === 'clientes') loadClientes();
   if (tabName === 'inventario') loadProductos();
   if (tabName === 'inicio') loadDashboard();
+  if (tabName === 'reportes') loadReportes();
 }
 
 function initNav() {
@@ -1259,6 +1260,167 @@ function initHistorial() {
   document.getElementById('historial-cerrar').addEventListener('click', closeHistorialPanel);
 }
 
+// ---------- Reportes ----------
+
+const VENDEDORES_FIJOS = ['Papá', 'Angie', 'Alexa', 'Alexis'];
+const mesFmt = new Intl.DateTimeFormat('es-MX', { month: 'long', year: 'numeric' });
+const fechaCortaFmt = new Intl.DateTimeFormat('es-MX', { dateStyle: 'short' });
+
+let reportesMes = (() => {
+  const hoy = new Date();
+  return new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+})();
+
+function capitalize(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function rangoMesReportes() {
+  const inicio = reportesMes;
+  const fin = new Date(inicio.getFullYear(), inicio.getMonth() + 1, 1);
+  return { inicio, fin };
+}
+
+function cambiarMesReportes(delta) {
+  reportesMes = new Date(reportesMes.getFullYear(), reportesMes.getMonth() + delta, 1);
+  loadReportes();
+}
+
+async function loadReportes() {
+  const { inicio, fin } = rangoMesReportes();
+  const inicioISO = inicio.toISOString();
+  const finISO = fin.toISOString();
+
+  document.getElementById('reportes-mes-label').textContent = capitalize(mesFmt.format(inicio));
+
+  const [
+    { data: ventasPeriodo, error: ventasError },
+    { data: abonosPeriodo, error: abonosError },
+    { data: clientesSaldo, error: clientesError },
+    { data: pagosPeriodo, error: pagosError },
+    { data: itemsPeriodo, error: itemsError },
+  ] = await Promise.all([
+    supabase.from('ventas')
+      .select('id, total, vendedor:usuarios!ventas_vendedor_id_fkey(nombre)')
+      .eq('anulado', false).gte('creado_en', inicioISO).lt('creado_en', finISO),
+    supabase.from('abonos')
+      .select('monto, vendedor:usuarios!abonos_vendedor_id_fkey(nombre)')
+      .eq('anulado', false).gte('creado_en', inicioISO).lt('creado_en', finISO),
+    supabase.from('clientes')
+      .select('id, nombre, saldo_pendiente')
+      .gt('saldo_pendiente', 0).order('saldo_pendiente', { ascending: false }),
+    supabase.from('venta_pagos')
+      .select('monto, utilidad_realizada, creado_en, venta:ventas!inner(anulado, vendedor:usuarios!ventas_vendedor_id_fkey(nombre))')
+      .gte('creado_en', inicioISO).lt('creado_en', finISO)
+      .eq('venta.anulado', false),
+    supabase.from('venta_items')
+      .select(`
+        cantidad, precio_unitario, costo_unitario,
+        producto:productos(nombre),
+        venta:ventas!inner(folio, creado_en, anulado, vendedor:usuarios!ventas_vendedor_id_fkey(nombre))
+      `)
+      .gte('venta.creado_en', inicioISO).lt('venta.creado_en', finISO)
+      .eq('venta.anulado', false),
+  ]);
+
+  if (ventasError || abonosError || clientesError || pagosError || itemsError) {
+    toast('No se pudo cargar Reportes.', 'error');
+    return;
+  }
+
+  renderReportesTotales(ventasPeriodo || [], pagosPeriodo || []);
+  renderReportesSaldos(clientesSaldo || []);
+  renderReportesVendedores(ventasPeriodo || [], abonosPeriodo || [], pagosPeriodo || []);
+  renderReportesDetalle(itemsPeriodo || []);
+}
+
+function renderReportesTotales(ventas, pagos) {
+  const totalVendido = ventas.reduce((sum, v) => sum + Number(v.total), 0);
+  const gananciaTotal = pagos.reduce((sum, p) => sum + Number(p.utilidad_realizada), 0);
+
+  document.getElementById('rep-total-vendido').textContent = money.format(totalVendido);
+  document.getElementById('rep-total-ventas-count').textContent =
+    `${ventas.length} venta${ventas.length === 1 ? '' : 's'}`;
+  document.getElementById('rep-ganancia-total').textContent = money.format(gananciaTotal);
+}
+
+function renderReportesSaldos(clientes) {
+  const total = clientes.reduce((sum, c) => sum + Number(c.saldo_pendiente), 0);
+  document.getElementById('rep-saldo-total').textContent = money.format(total);
+
+  const list = document.getElementById('rep-clientes-saldo-list');
+  const empty = document.getElementById('rep-clientes-saldo-empty');
+  list.innerHTML = '';
+  empty.style.display = clientes.length === 0 ? 'block' : 'none';
+
+  clientes.forEach((cliente) => {
+    const item = document.createElement('div');
+    item.className = 'list-item';
+    item.innerHTML = `
+      <div class="li-main"><div class="li-title">${escapeHtml(cliente.nombre)}</div></div>
+      <div class="li-badge pendiente">${money.format(Number(cliente.saldo_pendiente))}</div>
+    `;
+    list.appendChild(item);
+  });
+}
+
+function renderReportesVendedores(ventas, abonos, pagos) {
+  const tbody = document.getElementById('rep-vendedores-tbody');
+  tbody.innerHTML = '';
+
+  VENDEDORES_FIJOS.forEach((nombre) => {
+    const vendido = ventas
+      .filter((v) => v.vendedor && v.vendedor.nombre === nombre)
+      .reduce((sum, v) => sum + Number(v.total), 0);
+    const abonado = abonos
+      .filter((a) => a.vendedor && a.vendedor.nombre === nombre)
+      .reduce((sum, a) => sum + Number(a.monto), 0);
+    const ganancia = pagos
+      .filter((p) => p.venta && p.venta.vendedor && p.venta.vendedor.nombre === nombre)
+      .reduce((sum, p) => sum + Number(p.utilidad_realizada), 0);
+
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${escapeHtml(nombre)}</td>
+      <td>${money.format(vendido)}</td>
+      <td>${money.format(abonado)}</td>
+      <td>${money.format(ganancia)}</td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+function renderReportesDetalle(items) {
+  const tbody = document.getElementById('rep-detalle-tbody');
+  const empty = document.getElementById('rep-detalle-empty');
+  tbody.innerHTML = '';
+  empty.style.display = items.length === 0 ? 'block' : 'none';
+
+  items.forEach((item) => {
+    const costo = Number(item.costo_unitario);
+    const precio = Number(item.precio_unitario);
+    const utilidadPct = precio > 0 ? ((precio - costo) / precio) * 100 : 0;
+
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${fechaCortaFmt.format(new Date(item.venta.creado_en))}</td>
+      <td>${escapeHtml(item.venta.folio)}</td>
+      <td>${escapeHtml(item.producto ? item.producto.nombre : '—')}</td>
+      <td>${item.cantidad}</td>
+      <td>${money.format(costo)}</td>
+      <td>${money.format(precio)}</td>
+      <td>${utilidadPct.toFixed(1)}%</td>
+      <td>${escapeHtml(item.venta.vendedor ? item.venta.vendedor.nombre : '—')}</td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+function initReportes() {
+  document.getElementById('reportes-mes-anterior').addEventListener('click', () => cambiarMesReportes(-1));
+  document.getElementById('reportes-mes-siguiente').addEventListener('click', () => cambiarMesReportes(1));
+}
+
 // ---------- Init ----------
 
 function init() {
@@ -1270,6 +1432,7 @@ function init() {
   initVentas();
   initAbonos();
   initHistorial();
+  initReportes();
 
   const session = getSession();
   if (session) {

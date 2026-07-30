@@ -110,7 +110,53 @@
 
       <!-- Reportes -->
       <div id="tab-reportes" class="tab-panel">
-        <p class="tab-placeholder">Reportes se construye en el ticket 11 de TICKETS.md.</p>
+        <div class="reportes-mes-selector">
+          <button id="reportes-mes-anterior" class="icon-btn-alt" type="button" aria-label="Mes anterior">‹</button>
+          <span id="reportes-mes-label">—</span>
+          <button id="reportes-mes-siguiente" class="icon-btn-alt" type="button" aria-label="Mes siguiente">›</button>
+        </div>
+
+        <div class="dash-stats-row">
+          <div class="dash-stat-card">
+            <div class="dash-stat-label">Vendido en el periodo</div>
+            <div class="dash-stat-value" id="rep-total-vendido">$0.00</div>
+            <div class="dash-stat-sub" id="rep-total-ventas-count">0 ventas</div>
+          </div>
+          <div class="dash-stat-card dash-stat-alt">
+            <div class="dash-stat-label">Ganancia neta del periodo</div>
+            <div class="dash-stat-value" id="rep-ganancia-total">$0.00</div>
+          </div>
+        </div>
+
+        <h3 class="fs-subtitle">Saldo pendiente del negocio (a hoy)</h3>
+        <div class="reportes-saldo-total" id="rep-saldo-total">$0.00</div>
+        <div id="rep-clientes-saldo-list" class="list"></div>
+        <p id="rep-clientes-saldo-empty" class="tab-placeholder" style="display:none;">
+          Ningún cliente tiene saldo pendiente.
+        </p>
+
+        <h3 class="fs-subtitle">Por vendedor (periodo seleccionado)</h3>
+        <div class="reportes-table-wrap">
+          <table class="reportes-table">
+            <thead>
+              <tr><th>Vendedor</th><th>Vendido</th><th>Abonado</th><th>Ganancia neta</th></tr>
+            </thead>
+            <tbody id="rep-vendedores-tbody"></tbody>
+          </table>
+        </div>
+
+        <h3 class="fs-subtitle">Detalle artículo por artículo (periodo seleccionado)</h3>
+        <div class="reportes-table-wrap">
+          <table class="reportes-table">
+            <thead>
+              <tr><th>Fecha</th><th>Folio</th><th>Producto</th><th>Cant.</th><th>Costo unit.</th><th>Precio unit.</th><th>% util.</th><th>Vendedor</th></tr>
+            </thead>
+            <tbody id="rep-detalle-tbody"></tbody>
+          </table>
+        </div>
+        <p id="rep-detalle-empty" class="tab-placeholder" style="display:none;">
+          No hay ventas registradas en este periodo.
+        </p>
       </div>
     </div>
 
