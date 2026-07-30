@@ -528,11 +528,12 @@ begin
   assert (select saldo_pendiente from clientes where id = v_cliente_id) = 300, 'saldo del cliente debe regresar a 300';
   assert (select count(*) from venta_pagos where abono_id = v_abono_id) = 0, 'el venta_pagos del abono anulado debe desaparecer';
 
-  -- limpieza
+  -- limpieza (abonos antes que clientes, por el FK abonos_cliente_id_fkey)
   delete from venta_pagos where venta_id = v_venta_id;
   delete from venta_items where venta_id = v_venta_id;
   update productos set stock = stock + 1 where id = v_producto_id;
   delete from ventas where id = v_venta_id;
+  delete from abonos where cliente_id = v_cliente_id;
   delete from clientes where id = v_cliente_id;
 
   raise notice 'OK: anular abono revierte saldo_pendiente_venta y borra la ganancia realizada';
