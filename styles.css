@@ -747,3 +747,29 @@ body {
 .btn-anular:active {
   filter: brightness(0.95);
 }
+
+/* ---------- Costo oculto (Inventario y Carrito de venta) ---------- */
+
+.product-costo-row,
+.costo-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.product-costo,
+.costo-valor {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.costo-toggle-btn {
+  background: none;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}

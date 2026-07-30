@@ -325,7 +325,7 @@ function escapeAttr(str) {
 async function loadProductos() {
   const { data, error } = await supabase
     .from('productos')
-    .select('id, nombre, precio, foto_url, stock, categoria')
+    .select('id, nombre, precio, costo, foto_url, stock, categoria')
     .order('nombre');
 
   if (error) {
@@ -383,8 +383,18 @@ function renderProductosGrid() {
         ${p.categoria ? `<div class="li-sub">${escapeHtml(p.categoria)}</div>` : ''}
         <div class="product-stock">Stock: ${Number(p.stock)}</div>
         <div class="product-precio">${money.format(Number(p.precio))}</div>
+        <div class="product-costo-row">
+          <span class="product-costo oculto">Costo: ••••</span>
+          <button type="button" class="costo-toggle-btn" aria-label="Mostrar costo">👁</button>
+        </div>
       </div>
     `;
+    const costoEl = card.querySelector('.product-costo');
+    card.querySelector('.costo-toggle-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const oculto = costoEl.classList.toggle('oculto');
+      costoEl.textContent = oculto ? 'Costo: ••••' : `Costo: ${money.format(Number(p.costo))}`;
+    });
     card.addEventListener('click', () => openProductoForm(p));
     grid.appendChild(card);
   });
@@ -397,6 +407,7 @@ function openProductoForm(producto = null) {
   document.getElementById('producto-form-title').textContent = producto ? 'Editar producto' : 'Nuevo producto';
   document.getElementById('producto-nombre').value = producto ? producto.nombre : '';
   document.getElementById('producto-precio').value = producto ? producto.precio : '';
+  document.getElementById('producto-costo').value = producto ? producto.costo : '';
   document.getElementById('producto-stock').value = producto ? producto.stock : '';
   document.getElementById('producto-categoria').value = producto ? (producto.categoria || '') : '';
   document.getElementById('producto-foto').value = '';
@@ -430,6 +441,7 @@ async function saveProducto() {
 
   const nombre = document.getElementById('producto-nombre').value.trim();
   const precio = parseFloat(document.getElementById('producto-precio').value);
+  const costo = parseFloat(document.getElementById('producto-costo').value);
   const stock = parseInt(document.getElementById('producto-stock').value, 10);
   const categoria = document.getElementById('producto-categoria').value.trim();
   const fileInput = document.getElementById('producto-foto');
@@ -445,6 +457,10 @@ async function saveProducto() {
   }
   if (!Number.isFinite(precio) || precio <= 0) {
     errorEl.textContent = 'El precio es obligatorio y debe ser mayor a $0.';
+    return;
+  }
+  if (!Number.isFinite(costo) || costo <= 0) {
+    errorEl.textContent = 'El costo es obligatorio y debe ser mayor a $0.';
     return;
   }
   if (!Number.isInteger(stock) || stock < 0) {
@@ -473,7 +489,7 @@ async function saveProducto() {
       fotoUrl = urlData.publicUrl;
     }
 
-    const payload = { nombre, precio, stock, categoria: categoria || null, foto_url: fotoUrl };
+    const payload = { nombre, precio, costo, stock, categoria: categoria || null, foto_url: fotoUrl };
     const query = productoEditId
       ? supabase.from('productos').update(payload).eq('id', productoEditId)
       : supabase.from('productos').insert(payload);
