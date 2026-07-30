@@ -326,3 +326,88 @@ dejar datos de prueba.
 - [x] Ventas y abonos agrupados por vendedor (visible para todos)
 - [x] Ganancia neta por vendedor, realizada solo sobre lo efectivamente cobrado
 - [x] Solo tablas/texto — sin gráficas
+
+---
+
+## 12 — Gestión de usuarios 🔲
+
+**Blocked by:** Ninguno — puede iniciar de inmediato.
+
+**Qué construye:** alta/edición/desactivación de usuarios desde la propia
+app (hoy son 4 usuarios fijos sembrados a mano en Supabase, y el `<select>`
+de login está escrito directo en el código). Primer sub-proyecto de dos —
+el segundo (ticket 13, multi-almacén) depende de este.
+
+**Estado:** diseño escrito y committeado, **pendiente de que Luis lo
+revise/apruebe formalmente** antes de pasar al plan de implementación (ver
+[docs/superpowers/specs/2026-07-30-gestion-usuarios-design.md](docs/superpowers/specs/2026-07-30-gestion-usuarios-design.md)).
+Aún no existe plan de implementación ni código.
+
+Resumen del diseño aprobado en la sesión de brainstorming:
+- Solo rol `admin` gestiona usuarios; puede haber varios admins.
+- Baja = desactivar (`usuarios.activo`), nunca borrar — se puede reactivar.
+  Nunca se permite desactivar al último admin activo (salvaguarda).
+- Contraseña: autoservicio (requiere la actual) + reseteo directo por admin
+  (sin requerir la anterior — cubre "se me olvidó", este login no tiene
+  recuperación por correo).
+- Pantalla nueva "Mi cuenta" (no existe hoy), accesible desde un ícono en
+  el topbar — todos ven cambio de contraseña; solo admin ve gestión de
+  usuarios.
+- Login deja de tener una lista fija de nombres — se llena dinámicamente
+  desde `usuarios where activo = true`.
+- Confirmado (sin cambio de código): un admin ya puede vender hoy, no hay
+  restricción de rol en `registrar_venta()`.
+
+- [ ] Alta de usuario (nombre único, contraseña inicial, rol)
+- [ ] Edición (nombre, rol, reseteo de contraseña sin pedir la anterior)
+- [ ] Activar/desactivar (con salvaguarda de último admin) sin borrar nunca
+- [ ] Autoservicio: cambiar mi propia contraseña
+- [ ] Login dinámico (ya no una lista fija en el código)
+- [ ] Pantalla nueva "Mi cuenta"
+
+---
+
+## 13 — Inventario multi-almacén 🔲
+
+**Blocked by:** 12 (cada usuario nuevo necesita su almacén personal
+creado en la misma operación de alta)
+
+**Qué construye:** reemplaza `productos.stock` (un solo número global) por
+stock distribuido: un almacén central ("Casa") y un almacén propio por
+cada usuario (incluido el admin), con trazabilidad completa de toda
+entrada y traspaso — segundo sub-proyecto, depende del 12.
+
+**Estado:** diseño escrito y committeado, **pendiente de que Luis lo
+revise/apruebe formalmente** antes de pasar al plan de implementación (ver
+[docs/superpowers/specs/2026-07-30-multi-almacen-design.md](docs/superpowers/specs/2026-07-30-multi-almacen-design.md)).
+Aún no existe plan de implementación ni código. **No iniciar sin que el
+ticket 12 esté implementado primero.**
+
+Resumen del diseño aprobado en la sesión de brainstorming:
+- Tablas nuevas: `almacenes` (Central + uno por usuario), `stock_almacen`
+  (reemplaza `productos.stock`), `movimientos_almacen` (entradas y
+  traspasos, anulables).
+- Solo admin registra movimientos; traspasos entre cualquier par de
+  almacenes (incluye vendedor→vendedor directo); mercancía nueva siempre
+  entra primero a Central.
+- Una venta siempre descuenta del almacén propio de quien vende — nunca
+  elige de dónde vender. `registrar_venta()`/`anular_venta()` se reescriben
+  por tercera/segunda vez respectivamente para leer/mover `stock_almacen`
+  del almacén del vendedor en vez de un total global.
+- Anular un movimiento se bloquea (no hay "parcial" posible) si el destino
+  ya no tiene suficiente para revertir — a diferencia de `anular_venta()`
+  del ticket 11, aquí sí aplica el bloqueo porque son unidades físicas, no
+  dinero.
+- Pantalla nueva "📦 Movimientos" (acceso rápido en Inicio) — todos ven el
+  historial completo, solo admin crea/anula.
+- **Nota de migración:** el stock actual (46 unidades del único producto)
+  se asigna completo a Central al migrar — no hay forma de reconstruir si
+  ya estaba repartido en la realidad; hay que traspasarlo a mano después.
+
+- [ ] Esquema: `almacenes`, `stock_almacen`, `movimientos_almacen`
+- [ ] `registrar_entrada()`, `registrar_traspaso()`, `anular_movimiento()`
+- [ ] `crear_producto()` (alta con stock inicial atómico, ya no insert directo)
+- [ ] Rework de `registrar_venta()`/`anular_venta()` (almacén del vendedor)
+- [ ] Inventario: stock por almacén (solo lectura) + botón "Registrar entrada"
+- [ ] Carrito de venta: lista solo lo que el vendedor trae en su propio almacén
+- [ ] Pantalla nueva "📦 Movimientos" con permisos admin/todos

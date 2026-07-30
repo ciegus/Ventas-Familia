@@ -37,7 +37,7 @@ Documentos fuente de verdad — **leer antes de tocar código**:
 | `index.html` | Login + shell principal (4 pestañas) + overlays (bottom sheets, paneles fullscreen) |
 | `app.js` | Toda la lógica JS — módulo ES, importa `@supabase/supabase-js`, `html2canvas`, `jsPDF` desde `esm.sh` (sin build step) |
 | `styles.css` | Estilos — paleta teal/navy "Lima's Sales" |
-| `sw.js` | Service worker — cachea el shell estático, cache actual `vf-v3` |
+| `sw.js` | Service worker — cachea el shell estático, cache actual `vf-v4` |
 | `manifest.json` | PWA manifest |
 | `icon.svg` | Ícono/logo "LS" |
 
@@ -87,6 +87,15 @@ ningún paso manual adicional.
 
 Completados: 01 (esquema Supabase), 02 (shell + login), 03 (Clientes), 04 (Inventario),
 05 (venta de contado), 06 (venta a crédito), 07 (Abonos), 08 (Anulaciones), 09 (recibos
-PDF/WhatsApp), 10 (Dashboard principal).
+PDF/WhatsApp), 10 (Dashboard principal), 11 (Reportes + ganancia neta por vendedor).
 
-Pendiente: 11 (Reportes).
+**Pendiente — dos sub-proyectos secuenciales, diseño ya escrito y committeado, esperando
+revisión final de Luis antes de pasar a plan de implementación:**
+- 12 (Gestión de usuarios) — sin bloqueos, puede iniciar cuando se apruebe el spec en
+  [docs/superpowers/specs/2026-07-30-gestion-usuarios-design.md](docs/superpowers/specs/2026-07-30-gestion-usuarios-design.md).
+- 13 (Inventario multi-almacén) — **bloqueado por 12** (cada usuario nuevo necesita su
+  almacén creado en la misma operación de alta). Spec en
+  [docs/superpowers/specs/2026-07-30-multi-almacen-design.md](docs/superpowers/specs/2026-07-30-multi-almacen-design.md).
+
+Los usuarios y roles fijos descritos abajo ("Usuarios y roles") dejarán de ser fijos una
+vez que el ticket 12 esté implementado — se vuelven altas/bajas dinámicas desde la app.
