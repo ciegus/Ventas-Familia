@@ -286,14 +286,43 @@ pestaña y volver.
 
 ---
 
-## 11 — Reportes
+## 11 — Reportes ✅
 
 **Blocked by:** 08
 
-**Qué construye:** reportes de negocio, sin restricción de datos por rol.
+**Qué construye:** reportes de negocio, sin restricción de datos por rol —
+además del alcance original del SPEC, agrega el cálculo de ganancia neta por
+vendedor (ver [docs/superpowers/specs/2026-07-30-ganancia-por-vendedor-design.md](docs/superpowers/specs/2026-07-30-ganancia-por-vendedor-design.md)).
 
-- [ ] Total vendido (contado + crédito) por período
-- [ ] Saldo total pendiente del negocio (suma de saldos de todos los clientes)
-- [ ] Listado de clientes con saldo pendiente, de mayor a menor
-- [ ] Ventas y abonos agrupados por vendedor (visible para todos)
-- [ ] Solo tablas/texto — sin gráficas (fuera de alcance v1)
+**Estado:** completado — pestaña Reportes con selector de mes, tarjetas de
+total vendido y ganancia neta del periodo, saldo pendiente del negocio y
+listado de clientes con saldo (corte a hoy), tabla por vendedor (vendido/
+abonado/ganancia neta) y detalle artículo por artículo (costo, precio, %
+utilidad). Se agregó `productos.costo` (obligatorio), snapshot de costo en
+`venta_items`/`ventas`, y una nueva tabla `venta_pagos` que registra cada
+cobro real (enganche/contado o abono aplicado vía reparto FIFO) con su
+ganancia, atribuida siempre al vendedor original de la venta — no a quien
+cobra un abono ajeno. El precio de venta se volvió editable por línea en el
+carrito (antes era fijo del catálogo); el costo del producto se oculta por
+default en Inventario y en el carrito, con botón para revelarlo — en
+Reportes se muestra siempre, sin ocultar. `anular_venta()` de crédito ya no
+bloquea si el cliente ya abonó contra esa venta: descuenta solo lo que le
+quedaba pendiente a esa venta específica y conserva la ganancia ya
+realizada. Probado en navegador: campo costo obligatorio con bloqueo
+correcto, oculto/revelado en Inventario y carrito, precio editable por línea
+con total/subtotal en vivo, venta de contado y a crédito con precio editado
+generan folio/recibo/saldo correctos, Reportes recalcula al cambiar de mes
+(incluyendo el caso sin datos), ventas históricas previas a la migración
+muestran costo $0/100% utilidad (limitación esperada y documentada, no hay
+costo histórico que reconstruir), una venta nueva con costo real refleja el
+% de utilidad y la ganancia por vendedor correctos. Verificado directamente
+en Supabase con pruebas SQL para las 4 funciones reescritas (incluyendo el
+reparto FIFO entre vendedores distintos y la reversión de anulaciones), sin
+dejar datos de prueba.
+
+- [x] Total vendido (contado + crédito) por período
+- [x] Saldo total pendiente del negocio (suma de saldos de todos los clientes)
+- [x] Listado de clientes con saldo pendiente, de mayor a menor
+- [x] Ventas y abonos agrupados por vendedor (visible para todos)
+- [x] Ganancia neta por vendedor, realizada solo sobre lo efectivamente cobrado
+- [x] Solo tablas/texto — sin gráficas
