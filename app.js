@@ -1459,6 +1459,15 @@ function openCuentaPanel() {
   document.getElementById('cuenta-password-nueva').value = '';
   document.getElementById('cuenta-password-confirmar').value = '';
   document.getElementById('cuenta-password-error').textContent = '';
+
+  const seccionUsuarios = document.getElementById('cuenta-usuarios-seccion');
+  if (session.rol === 'admin') {
+    seccionUsuarios.style.display = 'block';
+    loadUsuarios();
+  } else {
+    seccionUsuarios.style.display = 'none';
+  }
+
   document.getElementById('cuenta-panel').classList.add('show');
 }
 
@@ -1522,6 +1531,200 @@ function initCuenta() {
   document.getElementById('btn-mi-cuenta').addEventListener('click', openCuentaPanel);
   document.getElementById('cuenta-cerrar').addEventListener('click', closeCuentaPanel);
   document.getElementById('cuenta-password-guardar').addEventListener('click', guardarPasswordPropia);
+
+  document.getElementById('btn-nuevo-usuario').addEventListener('click', () => openUsuarioForm(null));
+  document.getElementById('usuario-cancelar').addEventListener('click', closeUsuarioForm);
+  document.getElementById('usuario-guardar').addEventListener('click', saveUsuario);
+
+  document.querySelectorAll('#usuario-rol-toggle .toggle-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#usuario-rol-toggle .toggle-btn')
+        .forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  document.querySelectorAll('#usuario-activo-toggle .toggle-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#usuario-activo-toggle .toggle-btn')
+        .forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+}
+
+let usuariosCache = [];
+let usuarioEditId = null;
+
+async function loadUsuarios() {
+  const { data, error } = await supabase
+    .from('usuarios')
+    .select('id, nombre, rol, activo')
+    .order('nombre');
+
+  if (error) {
+    toast('No se pudo cargar la lista de usuarios.', 'error');
+    return;
+  }
+
+  usuariosCache = data || [];
+  renderUsuarios();
+}
+
+function renderUsuarios() {
+  const list = document.getElementById('cuenta-usuarios-list');
+  list.innerHTML = '';
+
+  usuariosCache.forEach((u) => {
+    const card = document.createElement('div');
+    card.className = 'list-item' + (u.activo ? '' : ' usuario-inactivo');
+    card.innerHTML = `
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(u.nombre)}</div>
+        <div class="li-sub">${u.rol === 'admin' ? 'Admin' : 'Vendedor'}</div>
+      </div>
+      <div class="li-badge ${u.activo ? 'al-dia' : 'pendiente'}">${u.activo ? 'Activo' : 'Inactivo'}</div>
+    `;
+    card.addEventListener('click', () => openUsuarioForm(u));
+    list.appendChild(card);
+  });
+}
+
+function openUsuarioForm(usuario) {
+  usuarioEditId = usuario ? usuario.id : null;
+  document.getElementById('usuario-form-title').textContent =
+    usuario ? 'Editar usuario' : 'Nuevo usuario';
+  document.getElementById('usuario-nombre').value = usuario ? usuario.nombre : '';
+  document.getElementById('usuario-password').value = '';
+  document.getElementById('usuario-password-label').textContent =
+    usuario ? 'Nueva contraseña (opcional)' : 'Contraseña inicial';
+  document.getElementById('usuario-form-error').textContent = '';
+
+  const rolInicial = usuario ? usuario.rol : 'vendedor';
+  document.querySelectorAll('#usuario-rol-toggle .toggle-btn').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.rol === rolInicial);
+  });
+
+  const activoRow = document.getElementById('usuario-activo-row');
+  if (usuario) {
+    activoRow.style.display = 'block';
+    document.querySelectorAll('#usuario-activo-toggle .toggle-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.activo === String(usuario.activo));
+    });
+  } else {
+    activoRow.style.display = 'none';
+  }
+
+  document.getElementById('usuario-sheet').classList.add('show');
+}
+
+function closeUsuarioForm() {
+  document.getElementById('usuario-sheet').classList.remove('show');
+  usuarioEditId = null;
+}
+
+async function saveUsuario() {
+  if (!assertOnline()) return;
+
+  const nombre = document.getElementById('usuario-nombre').value.trim();
+  const password = document.getElementById('usuario-password').value;
+  const rol = document.querySelector('#usuario-rol-toggle .toggle-btn.active').dataset.rol;
+  const errorEl = document.getElementById('usuario-form-error');
+  const saveBtn = document.getElementById('usuario-guardar');
+
+  errorEl.textContent = '';
+
+  if (!nombre) {
+    errorEl.textContent = 'El nombre es obligatorio.';
+    return;
+  }
+
+  if (!usuarioEditId && !password) {
+    errorEl.textContent = 'La contraseña inicial es obligatoria.';
+    return;
+  }
+
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Guardando...';
+
+  try {
+    const session = getSession();
+
+    if (!usuarioEditId) {
+      const { error } = await supabase.rpc('crear_usuario', {
+        p_nombre: nombre,
+        p_password: password,
+        p_rol: rol,
+      });
+
+      if (error) {
+        if (error.code === '23505') {
+          errorEl.textContent =
+            'Ya existe un usuario con ese nombre. Si es una persona distinta, diferéncialo ' +
+            'con un apodo o inicial.';
+        } else {
+          errorEl.textContent = 'No se pudo guardar. Intenta de nuevo.';
+        }
+        return;
+      }
+
+      toast('Usuario agregado.');
+    } else {
+      const { error: updateError } = await supabase
+        .from('usuarios')
+        .update({ nombre, rol })
+        .eq('id', usuarioEditId);
+
+      if (updateError) {
+        if (updateError.code === '23505') {
+          errorEl.textContent = 'Ya existe un usuario con ese nombre.';
+        } else {
+          errorEl.textContent = 'No se pudo guardar. Intenta de nuevo.';
+        }
+        return;
+      }
+
+      if (password) {
+        const { error: passError } = await supabase.rpc('admin_resetear_password', {
+          p_admin_id: session.id,
+          p_usuario_id: usuarioEditId,
+          p_password_nueva: password,
+        });
+        if (passError) {
+          errorEl.textContent = 'El usuario se guardó, pero no se pudo cambiar la contraseña.';
+          return;
+        }
+      }
+
+      const activoBtn = document.querySelector('#usuario-activo-toggle .toggle-btn.active');
+      const activoNuevo = activoBtn.dataset.activo === 'true';
+      const { error: estatusError } = await supabase.rpc('cambiar_estatus_usuario', {
+        p_admin_id: session.id,
+        p_usuario_id: usuarioEditId,
+        p_activo: activoNuevo,
+      });
+
+      if (estatusError) {
+        const msg = estatusError.message || '';
+        if (msg.includes('ULTIMO_ADMIN')) {
+          errorEl.textContent =
+            'No puedes desactivar al único admin activo — activa a otro admin primero.';
+        } else {
+          errorEl.textContent = 'No se pudo actualizar el estatus.';
+        }
+        return;
+      }
+
+      toast('Usuario actualizado.');
+    }
+
+    closeUsuarioForm();
+    loadUsuarios();
+    populateLoginUsuarios();
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Guardar';
+  }
 }
 
 // ---------- Init ----------
