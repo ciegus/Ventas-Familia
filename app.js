@@ -121,6 +121,13 @@ async function handleLogin(event) {
     }
 
     const user = data[0];
+    const { data: almacenData } = await supabase
+      .from('almacenes')
+      .select('id')
+      .eq('usuario_id', user.id)
+      .single();
+    user.almacenId = almacenData ? almacenData.id : null;
+
     setSession(user);
     document.getElementById('login-form').reset();
     renderMain(user);
@@ -1754,6 +1761,19 @@ function init() {
   populateLoginUsuarios();
   const session = getSession();
   if (session) {
+    if (!session.almacenId) {
+      supabase
+        .from('almacenes')
+        .select('id')
+        .eq('usuario_id', session.id)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            session.almacenId = data.id;
+            setSession(session);
+          }
+        });
+    }
     renderMain(session);
   } else {
     showView('view-login');
