@@ -856,3 +856,19 @@ body {
 .reportes-table tbody tr:last-child td {
   border-bottom: none;
 }
+
+/* ---------- Mi cuenta ---------- */
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cuenta-mi-info {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+}

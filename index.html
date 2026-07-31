@@ -48,7 +48,10 @@
           <span id="main-rol">—</span>
         </div>
       </div>
-      <button id="btn-logout" class="btn btn-ghost">Salir</button>
+      <div class="topbar-actions">
+        <button id="btn-mi-cuenta" class="icon-btn" type="button" aria-label="Mi cuenta">👤</button>
+        <button id="btn-logout" class="btn btn-ghost">Salir</button>
+      </div>
     </div>
 
     <div class="content">
@@ -349,6 +352,43 @@
       <p id="historial-empty" class="tab-placeholder" style="display:none;">
         Aún no hay ventas ni abonos registrados.
       </p>
+    </div>
+  </div>
+
+  <!-- ============ Panel Mi cuenta (fullscreen) ============ -->
+  <div id="cuenta-panel" class="fullscreen-overlay">
+    <div class="fs-header">
+      <button id="cuenta-cerrar" class="icon-btn" type="button">✕</button>
+      <h3>Mi cuenta</h3>
+      <span style="width:32px"></span>
+    </div>
+
+    <div class="fs-content">
+      <h3 class="fs-subtitle">Mi cuenta</h3>
+      <div class="cuenta-mi-info">
+        <div class="li-title" id="cuenta-mi-nombre">—</div>
+        <div class="li-sub" id="cuenta-mi-rol">—</div>
+      </div>
+
+      <h3 class="fs-subtitle">Cambiar mi contraseña</h3>
+      <div class="field">
+        <label for="cuenta-password-actual">Contraseña actual</label>
+        <input id="cuenta-password-actual" type="password" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="cuenta-password-nueva">Nueva contraseña</label>
+        <input id="cuenta-password-nueva" type="password" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="cuenta-password-confirmar">Confirmar nueva contraseña</label>
+        <input id="cuenta-password-confirmar" type="password" autocomplete="off" />
+      </div>
+      <p id="cuenta-password-error" class="error-msg"></p>
+      <button id="cuenta-password-guardar" type="button" class="btn btn-primary">Cambiar contraseña</button>
+
+      <div id="cuenta-usuarios-seccion" style="display:none;">
+        <!-- Task 9 agrega aquí la sección "Usuarios" (solo admin) -->
+      </div>
     </div>
   </div>
 
