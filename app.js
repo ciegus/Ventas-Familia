@@ -757,8 +757,13 @@ async function openVentaPanel() {
   document.getElementById('venta-paso-recibo').style.display = 'none';
   document.getElementById('venta-paso-armar').style.display = 'block';
 
+  const session = getSession();
   const [{ data: productos, error: prodError }, { data: clientes, error: cliError }] = await Promise.all([
-    supabase.from('productos').select('id, nombre, precio, stock, costo').order('nombre'),
+    supabase
+      .from('productos')
+      .select('id, nombre, precio, costo, stock_almacen!inner(cantidad)')
+      .eq('stock_almacen.almacen_id', session.almacenId)
+      .order('nombre'),
     supabase.from('clientes').select('id, nombre').order('nombre'),
   ]);
 
@@ -767,7 +772,10 @@ async function openVentaPanel() {
     return;
   }
 
-  ventaProductosCache = productos || [];
+  ventaProductosCache = (productos || []).map((p) => ({
+    ...p,
+    stock: p.stock_almacen[0]?.cantidad ?? 0,
+  }));
 
   const clienteSelect = document.getElementById('venta-cliente');
   clienteSelect.innerHTML = '<option value="">Sin cliente</option>';
