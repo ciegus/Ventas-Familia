@@ -1670,16 +1670,26 @@ async function saveUsuario() {
 
       toast('Usuario agregado.');
     } else {
-      const { error: updateError } = await supabase
-        .from('usuarios')
-        .update({ nombre, rol })
-        .eq('id', usuarioEditId);
+      const { error: updateError } = await supabase.rpc('actualizar_datos_usuario', {
+        p_admin_id: session.id,
+        p_usuario_id: usuarioEditId,
+        p_nombre: nombre,
+        p_rol: rol,
+      });
 
       if (updateError) {
         if (updateError.code === '23505') {
           errorEl.textContent = 'Ya existe un usuario con ese nombre.';
         } else {
-          errorEl.textContent = 'No se pudo guardar. Intenta de nuevo.';
+          const msg = updateError.message || '';
+          if (msg.includes('ULTIMO_ADMIN')) {
+            errorEl.textContent =
+              'No puedes quitarle el rol de admin al único admin activo — activa a otro admin primero.';
+          } else if (msg.includes('PERMISO_DENEGADO')) {
+            errorEl.textContent = 'No tienes permiso para hacer esto.';
+          } else {
+            errorEl.textContent = 'No se pudo guardar. Intenta de nuevo.';
+          }
         }
         return;
       }
