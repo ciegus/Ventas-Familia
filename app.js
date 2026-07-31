@@ -360,7 +360,7 @@ function escapeAttr(str) {
 async function loadProductos() {
   const { data, error } = await supabase
     .from('productos')
-    .select('id, nombre, precio, costo, foto_url, stock, categoria')
+    .select('id, nombre, precio, costo, foto_url, categoria, stock_almacen(cantidad)')
     .order('nombre');
 
   if (error) {
@@ -368,7 +368,10 @@ async function loadProductos() {
     return;
   }
 
-  productosCache = data || [];
+  productosCache = (data || []).map((p) => ({
+    ...p,
+    stock: (p.stock_almacen || []).reduce((sum, row) => sum + row.cantidad, 0),
+  }));
   renderFiltrosCategoria();
   renderProductosGrid();
 }
@@ -443,7 +446,8 @@ function openProductoForm(producto = null) {
   document.getElementById('producto-nombre').value = producto ? producto.nombre : '';
   document.getElementById('producto-precio').value = producto ? producto.precio : '';
   document.getElementById('producto-costo').value = producto ? producto.costo : '';
-  document.getElementById('producto-stock').value = producto ? producto.stock : '';
+  document.getElementById('producto-stock-row').style.display = producto ? 'none' : 'block';
+  document.getElementById('producto-stock').value = producto ? '' : '';
   document.getElementById('producto-categoria').value = producto ? (producto.categoria || '') : '';
   document.getElementById('producto-foto').value = '';
   document.getElementById('producto-form-error').textContent = '';
@@ -456,11 +460,93 @@ function openProductoForm(producto = null) {
     preview.style.display = 'none';
   }
 
+  document.getElementById('producto-stock-almacenes-row').style.display = producto ? 'block' : 'none';
+  document.getElementById('producto-entrada-row').style.display =
+    producto && getSession().rol === 'admin' ? 'block' : 'none';
+  document.getElementById('producto-entrada-cantidad').value = '';
+  document.getElementById('producto-entrada-error').textContent = '';
+  if (producto) loadStockPorAlmacen(producto.id);
+
   document.getElementById('producto-sheet').classList.add('show');
 }
 
 function closeProductoForm() {
   document.getElementById('producto-sheet').classList.remove('show');
+}
+
+async function loadStockPorAlmacen(productoId) {
+  const [{ data: almacenes, error: almError }, { data: stock, error: stockError }] = await Promise.all([
+    supabase.from('almacenes').select('id, nombre, usuario_id').order('nombre'),
+    supabase.from('stock_almacen').select('almacen_id, cantidad').eq('producto_id', productoId),
+  ]);
+
+  if (almError || stockError) {
+    document.getElementById('producto-stock-almacenes-list').innerHTML =
+      '<p class="tab-placeholder">No se pudo cargar el stock por almacén.</p>';
+    return;
+  }
+
+  const cantidadPorAlmacen = new Map((stock || []).map((s) => [s.almacen_id, s.cantidad]));
+  renderStockPorAlmacen(almacenes || [], cantidadPorAlmacen);
+}
+
+function renderStockPorAlmacen(almacenes, cantidadPorAlmacen) {
+  const list = document.getElementById('producto-stock-almacenes-list');
+  list.innerHTML = '';
+
+  almacenes.forEach((a) => {
+    const cantidad = cantidadPorAlmacen.get(a.id) || 0;
+    const item = document.createElement('div');
+    item.className = 'list-item';
+    item.innerHTML = `
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(a.nombre)}</div>
+      </div>
+      <div class="li-badge ${cantidad > 0 ? 'al-dia' : 'pendiente'}">${cantidad}</div>
+    `;
+    list.appendChild(item);
+  });
+}
+
+async function registrarEntradaProducto() {
+  if (!assertOnline()) return;
+  if (!productoEditId) return;
+
+  const cantidad = parseInt(document.getElementById('producto-entrada-cantidad').value, 10);
+  const errorEl = document.getElementById('producto-entrada-error');
+  const btn = document.getElementById('producto-entrada-confirmar');
+
+  errorEl.textContent = '';
+
+  if (!Number.isInteger(cantidad) || cantidad <= 0) {
+    errorEl.textContent = 'La cantidad debe ser un número entero mayor a 0.';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Registrando...';
+
+  try {
+    const session = getSession();
+    const { error } = await supabase.rpc('registrar_entrada', {
+      p_producto_id: productoEditId,
+      p_cantidad: cantidad,
+      p_usuario_id: session.id,
+    });
+
+    if (error) {
+      errorEl.textContent = 'No se pudo registrar la entrada. Intenta de nuevo.';
+      return;
+    }
+
+    document.getElementById('producto-entrada-cantidad').value = '';
+    toast('Entrada registrada.');
+    loadStockPorAlmacen(productoEditId);
+    loadProductos();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Registrar entrada';
+  }
 }
 
 function handleFotoChange(event) {
@@ -498,8 +584,8 @@ async function saveProducto() {
     errorEl.textContent = 'El costo es obligatorio y debe ser mayor a $0.';
     return;
   }
-  if (!Number.isInteger(stock) || stock < 0) {
-    errorEl.textContent = 'El stock es obligatorio y debe ser un número entero, 0 o mayor.';
+  if (!productoEditId && (!Number.isInteger(stock) || stock < 0)) {
+    errorEl.textContent = 'El stock inicial es obligatorio y debe ser un número entero, 0 o mayor.';
     return;
   }
   if (!file && !productoFotoUrlActual) {
@@ -524,16 +610,30 @@ async function saveProducto() {
       fotoUrl = urlData.publicUrl;
     }
 
-    const payload = { nombre, precio, costo, stock, categoria: categoria || null, foto_url: fotoUrl };
-    const query = productoEditId
-      ? supabase.from('productos').update(payload).eq('id', productoEditId)
-      : supabase.from('productos').insert(payload);
+    if (productoEditId) {
+      const payload = { nombre, precio, costo, categoria: categoria || null, foto_url: fotoUrl };
+      const { error } = await supabase.from('productos').update(payload).eq('id', productoEditId);
 
-    const { error } = await query;
+      if (error) {
+        errorEl.textContent = 'No se pudo guardar. Intenta de nuevo.';
+        return;
+      }
+    } else {
+      const session = getSession();
+      const { error } = await supabase.rpc('crear_producto', {
+        p_nombre: nombre,
+        p_precio: precio,
+        p_costo: costo,
+        p_foto_url: fotoUrl,
+        p_categoria: categoria || null,
+        p_stock_inicial: stock,
+        p_usuario_id: session.id,
+      });
 
-    if (error) {
-      errorEl.textContent = 'No se pudo guardar. Intenta de nuevo.';
-      return;
+      if (error) {
+        errorEl.textContent = 'No se pudo guardar. Intenta de nuevo.';
+        return;
+      }
     }
 
     closeProductoForm();
@@ -550,6 +650,7 @@ function initInventario() {
   document.getElementById('producto-cancelar').addEventListener('click', closeProductoForm);
   document.getElementById('producto-guardar').addEventListener('click', saveProducto);
   document.getElementById('producto-foto').addEventListener('change', handleFotoChange);
+  document.getElementById('producto-entrada-confirmar').addEventListener('click', registrarEntradaProducto);
 }
 
 // ---------- Recibos: PDF y WhatsApp ----------

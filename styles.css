@@ -901,3 +901,10 @@ body {
 .list-item.usuario-inactivo {
   opacity: 0.55;
 }
+
+/* ---------- Inventario multi-almacén ---------- */
+
+#producto-stock-almacenes-list .list-item,
+#producto-entrada-row {
+  margin-top: 4px;
+}
