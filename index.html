@@ -69,6 +69,10 @@
           <span class="quick-action-icon">📋</span>
           Historial
         </button>
+        <button id="btn-movimientos" class="quick-action quick-action-outline">
+          <span class="quick-action-icon">📦</span>
+          Movimientos
+        </button>
 
         <div class="dash-stats-row">
           <div class="dash-stat-card">
@@ -248,6 +252,41 @@
       <div class="sheet-actions">
         <button id="producto-cancelar" type="button" class="btn btn-outline">Cancelar</button>
         <button id="producto-guardar" type="button" class="btn btn-primary">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Formulario movimiento (bottom sheet) ============ -->
+  <div id="movimiento-sheet" class="sheet-overlay">
+    <div class="sheet">
+      <h3>Nuevo movimiento</h3>
+      <div class="field">
+        <label>Tipo</label>
+        <div class="toggle-group" id="movimiento-tipo-toggle">
+          <button type="button" class="toggle-btn active" data-tipo="entrada">Entrada</button>
+          <button type="button" class="toggle-btn" data-tipo="traspaso">Traspaso</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="movimiento-producto">Producto</label>
+        <select id="movimiento-producto"></select>
+      </div>
+      <div class="field" id="movimiento-origen-row" style="display:none;">
+        <label for="movimiento-origen">Almacén origen</label>
+        <select id="movimiento-origen"></select>
+      </div>
+      <div class="field" id="movimiento-destino-row" style="display:none;">
+        <label for="movimiento-destino">Almacén destino</label>
+        <select id="movimiento-destino"></select>
+      </div>
+      <div class="field">
+        <label for="movimiento-cantidad">Cantidad</label>
+        <input id="movimiento-cantidad" type="number" step="1" min="1" placeholder="0" />
+      </div>
+      <p id="movimiento-form-error" class="error-msg"></p>
+      <div class="sheet-actions">
+        <button id="movimiento-cancelar" type="button" class="btn btn-outline">Cancelar</button>
+        <button id="movimiento-guardar" type="button" class="btn btn-primary">Guardar</button>
       </div>
     </div>
   </div>
@@ -441,6 +480,24 @@
         <div id="cuenta-usuarios-list" class="list"></div>
       </div>
     </div>
+  </div>
+
+  <!-- ============ Panel Movimientos (fullscreen) ============ -->
+  <div id="movimientos-panel" class="fullscreen-overlay">
+    <div class="fs-header">
+      <button id="movimientos-cerrar" class="icon-btn" type="button">✕</button>
+      <h3>Movimientos</h3>
+      <span style="width:32px"></span>
+    </div>
+
+    <div class="fs-content">
+      <div id="movimientos-list" class="list"></div>
+      <p id="movimientos-empty" class="tab-placeholder" style="display:none;">
+        Aún no hay movimientos de almacén registrados.
+      </p>
+    </div>
+
+    <button id="fab-nuevo-movimiento" class="fab" type="button">+</button>
   </div>
 
   <div id="toast"></div>

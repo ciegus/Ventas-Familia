@@ -1853,6 +1853,272 @@ async function saveUsuario() {
   }
 }
 
+// ---------- Movimientos ----------
+
+let movimientosCache = [];
+let almacenesCache = [];
+let productosParaMovimientoCache = [];
+
+async function loadAlmacenes() {
+  const { data, error } = await supabase
+    .from('almacenes')
+    .select('id, nombre, usuario_id')
+    .order('nombre');
+  almacenesCache = error ? [] : (data || []);
+}
+
+async function loadMovimientos() {
+  const { data, error } = await supabase
+    .from('movimientos_almacen')
+    .select(`
+      id, cantidad, creado_en, anulado, anulado_en,
+      producto:productos(nombre),
+      origen:almacenes!movimientos_almacen_almacen_origen_id_fkey(nombre),
+      destino:almacenes!movimientos_almacen_almacen_destino_id_fkey(nombre),
+      usuario:usuarios!movimientos_almacen_usuario_id_fkey(nombre),
+      anulador:usuarios!movimientos_almacen_anulado_por_fkey(nombre)
+    `)
+    .order('creado_en', { ascending: false })
+    .limit(200);
+
+  if (error) {
+    toast('No se pudo cargar los movimientos.', 'error');
+    movimientosCache = [];
+    renderMovimientos();
+    return;
+  }
+
+  movimientosCache = data || [];
+  renderMovimientos();
+}
+
+function renderMovimientos() {
+  const list = document.getElementById('movimientos-list');
+  const empty = document.getElementById('movimientos-empty');
+  const session = getSession();
+
+  list.innerHTML = '';
+  empty.style.display = movimientosCache.length === 0 ? 'block' : 'none';
+
+  movimientosCache.forEach((m) => {
+    const descripcion = m.origen
+      ? `Traspaso: ${escapeHtml(m.origen.nombre)} → ${escapeHtml(m.destino.nombre)}`
+      : `Entrada → ${escapeHtml(m.destino.nombre)}`;
+
+    const anuladoTag = m.anulado
+      ? '<div class="li-sub historial-anulado-tag">Anulado</div>'
+      : '';
+
+    const card = document.createElement('div');
+    card.className = 'list-item historial-item' + (m.anulado ? ' anulado' : '');
+    card.innerHTML = `
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(m.producto.nombre)} · ${descripcion}</div>
+        <div class="li-sub">${m.cantidad} unidades · ${escapeHtml(m.usuario.nombre)} · ${fechaFmt.format(new Date(m.creado_en))}</div>
+        ${anuladoTag}
+      </div>
+      <div class="historial-item-right">
+        ${session && session.rol === 'admin' && !m.anulado ? '<button type="button" class="btn-anular">Anular</button>' : ''}
+      </div>
+    `;
+
+    if (session && session.rol === 'admin' && !m.anulado) {
+      card.querySelector('.btn-anular').addEventListener('click', (e) => {
+        confirmarAnularMovimiento(m.id, e.currentTarget);
+      });
+    }
+
+    list.appendChild(card);
+  });
+}
+
+async function confirmarAnularMovimiento(movimientoId, btn) {
+  if (!assertOnline()) return;
+
+  const ok = window.confirm('¿Seguro que quieres anular este movimiento? No se puede deshacer.');
+  if (!ok) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Anulando...';
+
+  try {
+    const session = getSession();
+    const { error } = await supabase.rpc('anular_movimiento', {
+      p_movimiento_id: movimientoId,
+      p_usuario_id: session.id,
+    });
+
+    if (error) {
+      const msg = error.message || '';
+      if (msg.includes('STOCK_INSUFICIENTE_PARA_ANULAR')) {
+        toast('No se puede anular: esas unidades ya se movieron o vendieron desde entonces.', 'error');
+      } else if (msg.includes('YA_ANULADO')) {
+        toast('Este movimiento ya estaba anulado.', 'error');
+      } else if (msg.includes('PERMISO_DENEGADO')) {
+        toast('No tienes permiso para anular movimientos.', 'error');
+      } else {
+        toast('No se pudo anular. Intenta de nuevo.', 'error');
+      }
+      return;
+    }
+
+    toast('Movimiento anulado.');
+    loadMovimientos();
+    loadProductos();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Anular';
+  }
+}
+
+async function openMovimientosPanel() {
+  const session = getSession();
+  document.getElementById('fab-nuevo-movimiento').classList.toggle('show', session.rol === 'admin');
+  document.getElementById('movimientos-panel').classList.add('show');
+  await loadMovimientos();
+}
+
+function closeMovimientosPanel() {
+  document.getElementById('movimientos-panel').classList.remove('show');
+}
+
+async function openMovimientoForm() {
+  document.querySelectorAll('#movimiento-tipo-toggle .toggle-btn').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.tipo === 'entrada');
+  });
+  document.getElementById('movimiento-origen-row').style.display = 'none';
+  document.getElementById('movimiento-destino-row').style.display = 'none';
+  document.getElementById('movimiento-cantidad').value = '';
+  document.getElementById('movimiento-form-error').textContent = '';
+
+  await loadAlmacenes();
+
+  const { data: productos } = await supabase.from('productos').select('id, nombre').order('nombre');
+  productosParaMovimientoCache = productos || [];
+
+  const productoSelect = document.getElementById('movimiento-producto');
+  productoSelect.innerHTML = '';
+  productosParaMovimientoCache.forEach((p) => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.nombre;
+    productoSelect.appendChild(opt);
+  });
+
+  [document.getElementById('movimiento-origen'), document.getElementById('movimiento-destino')].forEach((select) => {
+    select.innerHTML = '';
+    almacenesCache.forEach((a) => {
+      const opt = document.createElement('option');
+      opt.value = a.id;
+      opt.textContent = a.usuario_id ? a.nombre : 'Central';
+      select.appendChild(opt);
+    });
+  });
+
+  document.getElementById('movimiento-sheet').classList.add('show');
+}
+
+function closeMovimientoForm() {
+  document.getElementById('movimiento-sheet').classList.remove('show');
+}
+
+async function guardarMovimiento() {
+  if (!assertOnline()) return;
+
+  const tipo = document.querySelector('#movimiento-tipo-toggle .toggle-btn.active').dataset.tipo;
+  const productoId = document.getElementById('movimiento-producto').value;
+  const cantidad = parseInt(document.getElementById('movimiento-cantidad').value, 10);
+  const errorEl = document.getElementById('movimiento-form-error');
+  const btn = document.getElementById('movimiento-guardar');
+
+  errorEl.textContent = '';
+
+  if (!productoId) {
+    errorEl.textContent = 'Selecciona un producto.';
+    return;
+  }
+  if (!Number.isInteger(cantidad) || cantidad <= 0) {
+    errorEl.textContent = 'La cantidad debe ser un número entero mayor a 0.';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+
+  try {
+    const session = getSession();
+
+    if (tipo === 'entrada') {
+      const { error } = await supabase.rpc('registrar_entrada', {
+        p_producto_id: productoId,
+        p_cantidad: cantidad,
+        p_usuario_id: session.id,
+      });
+
+      if (error) {
+        errorEl.textContent = 'No se pudo registrar la entrada. Intenta de nuevo.';
+        return;
+      }
+    } else {
+      const origenId = document.getElementById('movimiento-origen').value;
+      const destinoId = document.getElementById('movimiento-destino').value;
+
+      if (origenId === destinoId) {
+        errorEl.textContent = 'El almacén de origen y destino no pueden ser el mismo.';
+        return;
+      }
+
+      const { error } = await supabase.rpc('registrar_traspaso', {
+        p_producto_id: productoId,
+        p_almacen_origen_id: origenId,
+        p_almacen_destino_id: destinoId,
+        p_cantidad: cantidad,
+        p_usuario_id: session.id,
+      });
+
+      if (error) {
+        const msg = error.message || '';
+        if (msg.includes('STOCK_INSUFICIENTE')) {
+          errorEl.textContent = 'Ese almacén no tiene suficiente cantidad para traspasar.';
+        } else if (msg.includes('MOVIMIENTO_INVALIDO')) {
+          errorEl.textContent = 'El almacén de origen y destino no pueden ser el mismo.';
+        } else {
+          errorEl.textContent = 'No se pudo registrar el traspaso. Intenta de nuevo.';
+        }
+        return;
+      }
+    }
+
+    closeMovimientoForm();
+    toast(tipo === 'entrada' ? 'Entrada registrada.' : 'Traspaso registrado.');
+    loadMovimientos();
+    loadProductos();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Guardar';
+  }
+}
+
+function initMovimientos() {
+  document.getElementById('btn-movimientos').addEventListener('click', openMovimientosPanel);
+  document.getElementById('movimientos-cerrar').addEventListener('click', closeMovimientosPanel);
+  document.getElementById('fab-nuevo-movimiento').addEventListener('click', openMovimientoForm);
+  document.getElementById('movimiento-cancelar').addEventListener('click', closeMovimientoForm);
+  document.getElementById('movimiento-guardar').addEventListener('click', guardarMovimiento);
+
+  document.querySelectorAll('#movimiento-tipo-toggle .toggle-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#movimiento-tipo-toggle .toggle-btn')
+        .forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const esTraspaso = btn.dataset.tipo === 'traspaso';
+      document.getElementById('movimiento-origen-row').style.display = esTraspaso ? 'block' : 'none';
+      document.getElementById('movimiento-destino-row').style.display = esTraspaso ? 'block' : 'none';
+    });
+  });
+}
+
 // ---------- Init ----------
 
 function init() {
@@ -1866,6 +2132,7 @@ function init() {
   initHistorial();
   initReportes();
   initCuenta();
+  initMovimientos();
 
   populateLoginUsuarios();
   const session = getSession();
