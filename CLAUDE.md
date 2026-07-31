@@ -37,7 +37,7 @@ Documentos fuente de verdad — **leer antes de tocar código**:
 | `index.html` | Login + shell principal (4 pestañas) + overlays (bottom sheets, paneles fullscreen) |
 | `app.js` | Toda la lógica JS — módulo ES, importa `@supabase/supabase-js`, `html2canvas`, `jsPDF` desde `esm.sh` (sin build step) |
 | `styles.css` | Estilos — paleta teal/navy "Lima's Sales" |
-| `sw.js` | Service worker — cachea el shell estático, cache actual `vf-v5` |
+| `sw.js` | Service worker — cachea el shell estático, cache actual `vf-v7` |
 | `manifest.json` | PWA manifest |
 | `icon.svg` | Ícono/logo "LS" |
 
@@ -88,13 +88,14 @@ ningún paso manual adicional.
 Completados: 01 (esquema Supabase), 02 (shell + login), 03 (Clientes), 04 (Inventario),
 05 (venta de contado), 06 (venta a crédito), 07 (Abonos), 08 (Anulaciones), 09 (recibos
 PDF/WhatsApp), 10 (Dashboard principal), 11 (Reportes + ganancia neta por vendedor),
-12 (Gestión de usuarios — SQL probado en vivo, frontend verificado de forma estática,
-pendiente prueba manual de Luis en el navegador).
+12 (Gestión de usuarios), 13 (Inventario multi-almacén — stock distribuido por almacén,
+pantalla "Movimientos", ver [docs/superpowers/specs/2026-07-30-multi-almacen-design.md](docs/superpowers/specs/2026-07-30-multi-almacen-design.md)
+para el diseño completo).
 
-**Pendiente:**
-- 13 (Inventario multi-almacén) — ya **no bloqueado** (el ticket 12 quedó completo), pero
-  sigue esperando revisión final de Luis antes de pasar a plan de implementación. Spec en
-  [docs/superpowers/specs/2026-07-30-multi-almacen-design.md](docs/superpowers/specs/2026-07-30-multi-almacen-design.md).
+**Pendiente:** ninguno de los tickets 01-13. Próximos pasos por definir con Luis.
 
 Los usuarios y roles fijos descritos abajo ("Usuarios y roles") dejaron de ser fijos con
-el ticket 12 — ahora son altas/bajas dinámicas desde la app (sección "Mi cuenta").
+el ticket 12 — ahora son altas/bajas dinámicas desde la app (sección "Mi cuenta"). El
+stock descrito en "Archivos del proyecto"/`app.js` ya no es un total único por producto —
+está distribuido en almacenes (ticket 13); ver la pantalla "Movimientos" para el
+historial completo.

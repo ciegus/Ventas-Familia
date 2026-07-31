@@ -367,47 +367,47 @@ navegador disponible en esta sesión).
 
 ---
 
-## 13 — Inventario multi-almacén 🔲
+## 13 — Inventario multi-almacén ✅
 
-**Blocked by:** 12 (cada usuario nuevo necesita su almacén personal
-creado en la misma operación de alta)
+**Blocked by:** 12 (completado)
 
-**Qué construye:** reemplaza `productos.stock` (un solo número global) por
-stock distribuido: un almacén central ("Casa") y un almacén propio por
-cada usuario (incluido el admin), con trazabilidad completa de toda
-entrada y traspaso — segundo sub-proyecto, depende del 12.
+**Qué construye:** reemplaza `productos.stock` (un solo número global) por stock
+distribuido: un almacén central ("Central") y un almacén propio por cada usuario
+(incluido el admin), con trazabilidad completa de toda entrada y traspaso.
 
-**Estado:** diseño escrito y committeado, **pendiente de que Luis lo
-revise/apruebe formalmente** antes de pasar al plan de implementación (ver
-[docs/superpowers/specs/2026-07-30-multi-almacen-design.md](docs/superpowers/specs/2026-07-30-multi-almacen-design.md)).
-Aún no existe plan de implementación ni código. **No iniciar sin que el
-ticket 12 esté implementado primero.**
+**Estado:** completado — tres tablas nuevas (`almacenes`, `stock_almacen`,
+`movimientos_almacen`), cuatro funciones SQL nuevas (`crear_producto`,
+`registrar_entrada`, `registrar_traspaso`, `anular_movimiento`) y rework de tres
+funciones existentes (`registrar_venta`, `anular_venta` — leen/escriben el almacén del
+vendedor en vez de un total global; `crear_usuario` — crea el almacén del usuario nuevo
+en la misma operación). Frontend: Inventario gana "Stock por almacén" de solo lectura +
+botón "Registrar entrada" (admin); el carrito de venta solo muestra lo que el vendedor
+logueado trae en su propio almacén; pantalla nueva "📦 Movimientos" (acceso rápido en
+Inicio) con historial visible para todos y alta/anulación solo para admin. Probado con
+SQL directo y en navegador: alta de producto con stock inicial genera su entrada a
+Central automáticamente, traspasos entre cualquier par de almacenes (incluido
+vendedor→vendedor directo sin pasar por Central), un vendedor no puede vender más de lo
+que tiene en su propio almacén aunque Central tenga de sobra, anular una venta repone al
+almacén del vendedor de esa venta (no a Central), anular un traspaso se bloquea si el
+destino ya no tiene suficiente para revertir, anular una entrada resta de Central sin
+"origen" que restaurar, solo admin ve los controles de movimientos (todos ven el
+historial).
 
-Resumen del diseño aprobado en la sesión de brainstorming:
-- Tablas nuevas: `almacenes` (Central + uno por usuario), `stock_almacen`
-  (reemplaza `productos.stock`), `movimientos_almacen` (entradas y
-  traspasos, anulables).
-- Solo admin registra movimientos; traspasos entre cualquier par de
-  almacenes (incluye vendedor→vendedor directo); mercancía nueva siempre
-  entra primero a Central.
-- Una venta siempre descuenta del almacén propio de quien vende — nunca
-  elige de dónde vender. `registrar_venta()`/`anular_venta()` se reescriben
-  por tercera/segunda vez respectivamente para leer/mover `stock_almacen`
-  del almacén del vendedor en vez de un total global.
-- Anular un movimiento se bloquea (no hay "parcial" posible) si el destino
-  ya no tiene suficiente para revertir — a diferencia de `anular_venta()`
-  del ticket 11, aquí sí aplica el bloqueo porque son unidades físicas, no
-  dinero.
-- Pantalla nueva "📦 Movimientos" (acceso rápido en Inicio) — todos ven el
-  historial completo, solo admin crea/anula.
-- **Nota de migración:** el stock actual (46 unidades del único producto)
-  se asigna completo a Central al migrar — no hay forma de reconstruir si
-  ya estaba repartido en la realidad; hay que traspasarlo a mano después.
+Regresión de cierre (Task 13) en navegador real contra Supabase en vivo: traspaso
+Central→Angie de 5 unidades reflejado correctamente en Inventario ("Stock por almacén")
+y en el carrito de Angie ("Stock disponible"), venta de contado de 2 unidades descontó
+solo del almacén de Angie (Central intacto), anulación de esa venta repuso las 2
+unidades al almacén de Angie (no a Central), traspaso inverso Angie→Central dejó el
+stock exactamente como al inicio del ticket (Central 46 / resto en 0). También se
+verificó sin regresión: login (los 4 usuarios activos), Historial con permisos de
+anulación por rol, panel "Mi cuenta"/"Usuarios" (ticket 12) y Reportes con las cifras
+recalculadas — sin errores en consola del navegador durante toda la sesión. No quedó
+ningún dato de prueba con nombre "Test %"/"Prueba QA" en `productos` ni `usuarios`.
 
-- [ ] Esquema: `almacenes`, `stock_almacen`, `movimientos_almacen`
-- [ ] `registrar_entrada()`, `registrar_traspaso()`, `anular_movimiento()`
-- [ ] `crear_producto()` (alta con stock inicial atómico, ya no insert directo)
-- [ ] Rework de `registrar_venta()`/`anular_venta()` (almacén del vendedor)
-- [ ] Inventario: stock por almacén (solo lectura) + botón "Registrar entrada"
-- [ ] Carrito de venta: lista solo lo que el vendedor trae en su propio almacén
-- [ ] Pantalla nueva "📦 Movimientos" con permisos admin/todos
+- [x] Esquema: `almacenes`, `stock_almacen`, `movimientos_almacen`
+- [x] `registrar_entrada()`, `registrar_traspaso()`, `anular_movimiento()`
+- [x] `crear_producto()` (alta con stock inicial atómico, ya no insert directo)
+- [x] Rework de `registrar_venta()`/`anular_venta()` (almacén del vendedor)
+- [x] Inventario: stock por almacén (solo lectura) + botón "Registrar entrada"
+- [x] Carrito de venta: lista solo lo que el vendedor trae en su propio almacén
+- [x] Pantalla nueva "📦 Movimientos" con permisos admin/todos
