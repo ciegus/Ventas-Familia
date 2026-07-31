@@ -65,6 +65,32 @@ function renderMain(user) {
 
 // ---------- Login ----------
 
+async function populateLoginUsuarios() {
+  const select = document.getElementById('login-nombre');
+  const valorPrevio = select.value;
+
+  const { data, error } = await supabase
+    .from('usuarios')
+    .select('nombre')
+    .eq('activo', true)
+    .order('nombre');
+
+  select.innerHTML = '<option value="" disabled selected>Selecciona tu nombre</option>';
+
+  if (error || !data) return;
+
+  data.forEach(({ nombre }) => {
+    const opt = document.createElement('option');
+    opt.value = nombre;
+    opt.textContent = nombre;
+    select.appendChild(opt);
+  });
+
+  if (data.some((u) => u.nombre === valorPrevio)) {
+    select.value = valorPrevio;
+  }
+}
+
 async function handleLogin(event) {
   event.preventDefault();
   if (!assertOnline()) return;
@@ -107,6 +133,7 @@ async function handleLogin(event) {
 function handleLogout() {
   clearSession();
   historialCache = [];
+  populateLoginUsuarios();
   showView('view-login');
 }
 
@@ -1434,6 +1461,7 @@ function init() {
   initHistorial();
   initReportes();
 
+  populateLoginUsuarios();
   const session = getSession();
   if (session) {
     renderMain(session);
