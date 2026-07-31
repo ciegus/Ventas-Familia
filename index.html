@@ -239,6 +239,40 @@
     </div>
   </div>
 
+  <!-- ============ Formulario usuario (bottom sheet) ============ -->
+  <div id="usuario-sheet" class="sheet-overlay">
+    <div class="sheet">
+      <h3 id="usuario-form-title">Nuevo usuario</h3>
+      <div class="field">
+        <label for="usuario-nombre">Nombre</label>
+        <input id="usuario-nombre" type="text" placeholder="Ej. Karla" />
+      </div>
+      <div class="field">
+        <label>Rol</label>
+        <div class="toggle-group" id="usuario-rol-toggle">
+          <button type="button" class="toggle-btn active" data-rol="vendedor">Vendedor</button>
+          <button type="button" class="toggle-btn" data-rol="admin">Admin</button>
+        </div>
+      </div>
+      <div class="field">
+        <label id="usuario-password-label" for="usuario-password">Contraseña inicial</label>
+        <input id="usuario-password" type="password" autocomplete="off" />
+      </div>
+      <div class="field" id="usuario-activo-row" style="display:none;">
+        <label>Estatus</label>
+        <div class="toggle-group" id="usuario-activo-toggle">
+          <button type="button" class="toggle-btn active" data-activo="true">Activo</button>
+          <button type="button" class="toggle-btn" data-activo="false">Inactivo</button>
+        </div>
+      </div>
+      <p id="usuario-form-error" class="error-msg"></p>
+      <div class="sheet-actions">
+        <button id="usuario-cancelar" type="button" class="btn btn-outline">Cancelar</button>
+        <button id="usuario-guardar" type="button" class="btn btn-primary">Guardar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ============ Panel Nueva venta (fullscreen) ============ -->
   <div id="venta-panel" class="fullscreen-overlay">
     <div class="fs-header">
@@ -387,7 +421,11 @@
       <button id="cuenta-password-guardar" type="button" class="btn btn-primary">Cambiar contraseña</button>
 
       <div id="cuenta-usuarios-seccion" style="display:none;">
-        <!-- Task 9 agrega aquí la sección "Usuarios" (solo admin) -->
+        <div class="cuenta-usuarios-header">
+          <h3 class="fs-subtitle" style="margin:20px 0 0;">Usuarios</h3>
+          <button id="btn-nuevo-usuario" type="button" class="btn btn-outline btn-nuevo-usuario">+ Nuevo</button>
+        </div>
+        <div id="cuenta-usuarios-list" class="list"></div>
       </div>
     </div>
   </div>

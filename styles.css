@@ -884,3 +884,20 @@ body {
   color: var(--muted);
   margin-top: 2px;
 }
+
+.cuenta-usuarios-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.btn-nuevo-usuario {
+  width: auto;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+.list-item.usuario-inactivo {
+  opacity: 0.55;
+}
