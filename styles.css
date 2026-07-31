@@ -872,3 +872,15 @@ body {
   padding: 14px 16px;
   margin-bottom: 8px;
 }
+
+.cuenta-mi-info .li-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.cuenta-mi-info .li-sub {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 2px;
+}
