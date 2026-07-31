@@ -329,41 +329,41 @@ dejar datos de prueba.
 
 ---
 
-## 12 — Gestión de usuarios 🔲
+## 12 — Gestión de usuarios ✅
 
-**Blocked by:** Ninguno — puede iniciar de inmediato.
+**Blocked by:** Ninguno
 
-**Qué construye:** alta/edición/desactivación de usuarios desde la propia
-app (hoy son 4 usuarios fijos sembrados a mano en Supabase, y el `<select>`
-de login está escrito directo en el código). Primer sub-proyecto de dos —
-el segundo (ticket 13, multi-almacén) depende de este.
+**Qué construye:** alta/edición/desactivación de usuarios desde la propia app
+(antes eran 4 usuarios fijos sembrados a mano en Supabase). Primer
+sub-proyecto de dos — desbloquea el ticket 13 (multi-almacén).
 
-**Estado:** diseño escrito y committeado, **pendiente de que Luis lo
-revise/apruebe formalmente** antes de pasar al plan de implementación (ver
-[docs/superpowers/specs/2026-07-30-gestion-usuarios-design.md](docs/superpowers/specs/2026-07-30-gestion-usuarios-design.md)).
-Aún no existe plan de implementación ni código.
+**Estado:** completado — pantalla nueva "Mi cuenta" (ícono 👤 en el topbar,
+panel fullscreen) con dos secciones: "Mi cuenta" (todos los roles, cambio de
+contraseña con la actual + nueva + confirmar) y "Usuarios" (solo admin,
+lista con badge Activo/Inactivo, alta con nombre + contraseña inicial + rol,
+edición con reseteo de contraseña opcional y toggle de estatus). Login ya no
+tiene una lista fija — se puebla dinámicamente desde `usuarios where
+activo = true`. Cuatro funciones SQL nuevas (`crear_usuario`,
+`cambiar_contrasena`, `admin_resetear_password`, `cambiar_estatus_usuario`) y
+un refuerzo de una línea en `login_usuario()` (rechaza usuarios inactivos).
+Las 5 funciones SQL se probaron en vivo contra Supabase (alta, login
+bloqueado/permitido según `activo`, cambio de contraseña propio y por admin,
+salvaguarda del último admin). El frontend (login dinámico, panel "Mi
+cuenta", sección "Usuarios") se implementó y se verificó de forma estática
+(sintaxis, IDs/clases cruzados contra el HTML/CSS, trazado de lógica) —
+**pendiente que Luis lo pruebe manualmente en el navegador** antes de darlo
+por completamente cerrado (no hubo herramienta de automatización de
+navegador disponible en esta sesión).
 
-Resumen del diseño aprobado en la sesión de brainstorming:
-- Solo rol `admin` gestiona usuarios; puede haber varios admins.
-- Baja = desactivar (`usuarios.activo`), nunca borrar — se puede reactivar.
-  Nunca se permite desactivar al último admin activo (salvaguarda).
-- Contraseña: autoservicio (requiere la actual) + reseteo directo por admin
-  (sin requerir la anterior — cubre "se me olvidó", este login no tiene
-  recuperación por correo).
-- Pantalla nueva "Mi cuenta" (no existe hoy), accesible desde un ícono en
-  el topbar — todos ven cambio de contraseña; solo admin ve gestión de
-  usuarios.
-- Login deja de tener una lista fija de nombres — se llena dinámicamente
-  desde `usuarios where activo = true`.
-- Confirmado (sin cambio de código): un admin ya puede vender hoy, no hay
-  restricción de rol en `registrar_venta()`.
-
-- [ ] Alta de usuario (nombre único, contraseña inicial, rol)
-- [ ] Edición (nombre, rol, reseteo de contraseña sin pedir la anterior)
-- [ ] Activar/desactivar (con salvaguarda de último admin) sin borrar nunca
-- [ ] Autoservicio: cambiar mi propia contraseña
-- [ ] Login dinámico (ya no una lista fija en el código)
-- [ ] Pantalla nueva "Mi cuenta"
+- [x] Solo `admin` gestiona usuarios (puede haber varios); baja = desactivar
+      (`usuarios.activo`), nunca borrar — reactivable
+- [x] Salvaguarda: nunca se permite desactivar al último admin activo
+- [x] Contraseña: autoservicio (requiere la actual) + reseteo directo por
+      admin (sin requerir la anterior)
+- [x] Pantalla "Mi cuenta" nueva, accesible desde ícono en topbar — todos ven
+      cambio de contraseña; solo admin ve gestión de usuarios
+- [x] Login poblado dinámicamente desde `usuarios where activo = true`
+- [x] Confirmado sin cambio de código: un admin ya puede vender hoy
 
 ---
 

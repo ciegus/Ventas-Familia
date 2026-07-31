@@ -37,7 +37,7 @@ Documentos fuente de verdad — **leer antes de tocar código**:
 | `index.html` | Login + shell principal (4 pestañas) + overlays (bottom sheets, paneles fullscreen) |
 | `app.js` | Toda la lógica JS — módulo ES, importa `@supabase/supabase-js`, `html2canvas`, `jsPDF` desde `esm.sh` (sin build step) |
 | `styles.css` | Estilos — paleta teal/navy "Lima's Sales" |
-| `sw.js` | Service worker — cachea el shell estático, cache actual `vf-v4` |
+| `sw.js` | Service worker — cachea el shell estático, cache actual `vf-v5` |
 | `manifest.json` | PWA manifest |
 | `icon.svg` | Ícono/logo "LS" |
 
@@ -87,15 +87,14 @@ ningún paso manual adicional.
 
 Completados: 01 (esquema Supabase), 02 (shell + login), 03 (Clientes), 04 (Inventario),
 05 (venta de contado), 06 (venta a crédito), 07 (Abonos), 08 (Anulaciones), 09 (recibos
-PDF/WhatsApp), 10 (Dashboard principal), 11 (Reportes + ganancia neta por vendedor).
+PDF/WhatsApp), 10 (Dashboard principal), 11 (Reportes + ganancia neta por vendedor),
+12 (Gestión de usuarios — SQL probado en vivo, frontend verificado de forma estática,
+pendiente prueba manual de Luis en el navegador).
 
-**Pendiente — dos sub-proyectos secuenciales, diseño ya escrito y committeado, esperando
-revisión final de Luis antes de pasar a plan de implementación:**
-- 12 (Gestión de usuarios) — sin bloqueos, puede iniciar cuando se apruebe el spec en
-  [docs/superpowers/specs/2026-07-30-gestion-usuarios-design.md](docs/superpowers/specs/2026-07-30-gestion-usuarios-design.md).
-- 13 (Inventario multi-almacén) — **bloqueado por 12** (cada usuario nuevo necesita su
-  almacén creado en la misma operación de alta). Spec en
+**Pendiente:**
+- 13 (Inventario multi-almacén) — ya **no bloqueado** (el ticket 12 quedó completo), pero
+  sigue esperando revisión final de Luis antes de pasar a plan de implementación. Spec en
   [docs/superpowers/specs/2026-07-30-multi-almacen-design.md](docs/superpowers/specs/2026-07-30-multi-almacen-design.md).
 
-Los usuarios y roles fijos descritos abajo ("Usuarios y roles") dejarán de ser fijos una
-vez que el ticket 12 esté implementado — se vuelven altas/bajas dinámicas desde la app.
+Los usuarios y roles fijos descritos abajo ("Usuarios y roles") dejaron de ser fijos con
+el ticket 12 — ahora son altas/bajas dinámicas desde la app (sección "Mi cuenta").
