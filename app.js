@@ -157,6 +157,11 @@ function switchTab(tabName) {
     fab.classList.toggle('show', fab.dataset.fabFor === tabName);
   });
 
+  if (tabName === 'inventario') {
+    const session = getSession();
+    document.getElementById('fab-nuevo-producto').classList.toggle('show', !!session && session.rol === 'admin');
+  }
+
   if (tabName === 'clientes') loadClientes();
   if (tabName === 'inventario') loadProductos();
   if (tabName === 'inicio') loadDashboard();
@@ -474,9 +479,13 @@ function closeProductoForm() {
   document.getElementById('producto-sheet').classList.remove('show');
 }
 
+function nombreAlmacen(a) {
+  return a.usuario_id ? a.usuarios.nombre : 'Central';
+}
+
 async function loadStockPorAlmacen(productoId) {
   const [{ data: almacenes, error: almError }, { data: stock, error: stockError }] = await Promise.all([
-    supabase.from('almacenes').select('id, nombre, usuario_id').order('nombre'),
+    supabase.from('almacenes').select('id, usuario_id, usuarios(nombre)'),
     supabase.from('stock_almacen').select('almacen_id, cantidad').eq('producto_id', productoId),
   ]);
 
@@ -494,13 +503,15 @@ function renderStockPorAlmacen(almacenes, cantidadPorAlmacen) {
   const list = document.getElementById('producto-stock-almacenes-list');
   list.innerHTML = '';
 
-  almacenes.forEach((a) => {
+  const ordenados = [...almacenes].sort((a, b) => nombreAlmacen(a).localeCompare(nombreAlmacen(b)));
+
+  ordenados.forEach((a) => {
     const cantidad = cantidadPorAlmacen.get(a.id) || 0;
     const item = document.createElement('div');
     item.className = 'list-item';
     item.innerHTML = `
       <div class="li-main">
-        <div class="li-title">${escapeHtml(a.nombre)}</div>
+        <div class="li-title">${escapeHtml(nombreAlmacen(a))}</div>
       </div>
       <div class="li-badge ${cantidad > 0 ? 'al-dia' : 'pendiente'}">${cantidad}</div>
     `;
@@ -636,7 +647,12 @@ async function saveProducto() {
       });
 
       if (error) {
-        errorEl.textContent = 'No se pudo guardar. Intenta de nuevo.';
+        const msg = error.message || '';
+        if (msg.includes('PERMISO_DENEGADO')) {
+          errorEl.textContent = 'Solo un administrador puede dar de alta productos con stock.';
+        } else {
+          errorEl.textContent = 'No se pudo guardar. Intenta de nuevo.';
+        }
         return;
       }
     }
@@ -1868,9 +1884,8 @@ let productosParaMovimientoCache = [];
 async function loadAlmacenes() {
   const { data, error } = await supabase
     .from('almacenes')
-    .select('id, nombre, usuario_id')
-    .order('nombre');
-  almacenesCache = error ? [] : (data || []);
+    .select('id, usuario_id, usuarios(nombre)');
+  almacenesCache = (error ? [] : (data || [])).sort((a, b) => nombreAlmacen(a).localeCompare(nombreAlmacen(b)));
 }
 
 async function loadMovimientos() {
@@ -1879,8 +1894,8 @@ async function loadMovimientos() {
     .select(`
       id, cantidad, creado_en, anulado, anulado_en,
       producto:productos(nombre),
-      origen:almacenes!movimientos_almacen_almacen_origen_id_fkey(nombre),
-      destino:almacenes!movimientos_almacen_almacen_destino_id_fkey(nombre),
+      origen:almacenes!movimientos_almacen_almacen_origen_id_fkey(usuario_id, usuarios(nombre)),
+      destino:almacenes!movimientos_almacen_almacen_destino_id_fkey(usuario_id, usuarios(nombre)),
       usuario:usuarios!movimientos_almacen_usuario_id_fkey(nombre),
       anulador:usuarios!movimientos_almacen_anulado_por_fkey(nombre)
     `)
@@ -1908,8 +1923,8 @@ function renderMovimientos() {
 
   movimientosCache.forEach((m) => {
     const descripcion = m.origen
-      ? `Traspaso: ${escapeHtml(m.origen.nombre)} → ${escapeHtml(m.destino.nombre)}`
-      : `Entrada → ${escapeHtml(m.destino.nombre)}`;
+      ? `Traspaso: ${escapeHtml(nombreAlmacen(m.origen))} → ${escapeHtml(nombreAlmacen(m.destino))}`
+      : `Entrada → ${escapeHtml(nombreAlmacen(m.destino))}`;
 
     const anuladoTag = m.anulado
       ? '<div class="li-sub historial-anulado-tag">Anulado</div>'
@@ -2016,7 +2031,7 @@ async function openMovimientoForm() {
     almacenesCache.forEach((a) => {
       const opt = document.createElement('option');
       opt.value = a.id;
-      opt.textContent = a.usuario_id ? a.nombre : 'Central';
+      opt.textContent = nombreAlmacen(a);
       select.appendChild(opt);
     });
   });

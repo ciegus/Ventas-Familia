@@ -1,4 +1,4 @@
-const CACHE = 'vf-v8';
+const CACHE = 'vf-v9';
 const SHELL = [
   './',
   './index.html',

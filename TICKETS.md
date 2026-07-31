@@ -411,3 +411,15 @@ ningún dato de prueba con nombre "Test %"/"Prueba QA" en `productos` ni `usuari
 - [x] Inventario: stock por almacén (solo lectura) + botón "Registrar entrada"
 - [x] Carrito de venta: lista solo lo que el vendedor trae en su propio almacén
 - [x] Pantalla nueva "📦 Movimientos" con permisos admin/todos
+
+**Ajustes post-cierre (mismo día, tras review final):** se encontró y corrigió un
+movimiento de prueba mal revertido que dejaba un botón "Anular" capaz de borrar 20
+unidades reales de Central de un clic (ya corregido, sin impacto real). Además, por
+decisión de Luis: (1) el nombre de un almacén de vendedor ya no se guarda duplicado —
+se resuelve en vivo desde `usuarios.nombre` vía join, así que renombrar a alguien
+(sección "Mi cuenta") se refleja de inmediato en Inventario y Movimientos sin que quede
+desactualizado; (2) `crear_producto()` ahora exige rol `admin` (antes cualquier
+vendedor podía dar de alta stock de la nada) — el botón "+" de Inventario ya no se
+muestra a vendedores; (3) se eliminaron 8 ventas de prueba del 2026-07-27 (previas a
+este ticket, detectadas en el review final) que habrían repuesto stock al almacén
+equivocado si alguna vez se anulaban.
