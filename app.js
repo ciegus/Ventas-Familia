@@ -535,7 +535,12 @@ async function registrarEntradaProducto() {
     });
 
     if (error) {
-      errorEl.textContent = 'No se pudo registrar la entrada. Intenta de nuevo.';
+      const msg = error.message || '';
+      if (msg.includes('PERMISO_DENEGADO')) {
+        errorEl.textContent = 'Solo un administrador puede registrar/anular movimientos de almacén.';
+      } else {
+        errorEl.textContent = 'No se pudo registrar la entrada. Intenta de nuevo.';
+      }
       return;
     }
 
@@ -763,6 +768,7 @@ async function openVentaPanel() {
       .from('productos')
       .select('id, nombre, precio, costo, stock_almacen!inner(cantidad)')
       .eq('stock_almacen.almacen_id', session.almacenId)
+      .gt('stock_almacen.cantidad', 0)
       .order('nombre'),
     supabase.from('clientes').select('id, nombre').order('nombre'),
   ]);
@@ -1955,7 +1961,7 @@ async function confirmarAnularMovimiento(movimientoId, btn) {
       } else if (msg.includes('YA_ANULADO')) {
         toast('Este movimiento ya estaba anulado.', 'error');
       } else if (msg.includes('PERMISO_DENEGADO')) {
-        toast('No tienes permiso para anular movimientos.', 'error');
+        toast('Solo un administrador puede registrar/anular movimientos de almacén.', 'error');
       } else {
         toast('No se pudo anular. Intenta de nuevo.', 'error');
       }
@@ -2056,7 +2062,12 @@ async function guardarMovimiento() {
       });
 
       if (error) {
-        errorEl.textContent = 'No se pudo registrar la entrada. Intenta de nuevo.';
+        const msg = error.message || '';
+        if (msg.includes('PERMISO_DENEGADO')) {
+          errorEl.textContent = 'Solo un administrador puede registrar/anular movimientos de almacén.';
+        } else {
+          errorEl.textContent = 'No se pudo registrar la entrada. Intenta de nuevo.';
+        }
         return;
       }
     } else {
