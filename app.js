@@ -1448,6 +1448,82 @@ function initReportes() {
   document.getElementById('reportes-mes-siguiente').addEventListener('click', () => cambiarMesReportes(1));
 }
 
+// ---------- Mi cuenta ----------
+
+function openCuentaPanel() {
+  const session = getSession();
+  document.getElementById('cuenta-mi-nombre').textContent = session.nombre;
+  document.getElementById('cuenta-mi-rol').textContent =
+    session.rol === 'admin' ? 'Gerente' : 'Vendedor';
+  document.getElementById('cuenta-password-actual').value = '';
+  document.getElementById('cuenta-password-nueva').value = '';
+  document.getElementById('cuenta-password-confirmar').value = '';
+  document.getElementById('cuenta-password-error').textContent = '';
+  document.getElementById('cuenta-panel').classList.add('show');
+}
+
+function closeCuentaPanel() {
+  document.getElementById('cuenta-panel').classList.remove('show');
+}
+
+async function guardarPasswordPropia() {
+  if (!assertOnline()) return;
+
+  const actual = document.getElementById('cuenta-password-actual').value;
+  const nueva = document.getElementById('cuenta-password-nueva').value;
+  const confirmar = document.getElementById('cuenta-password-confirmar').value;
+  const errorEl = document.getElementById('cuenta-password-error');
+  const btn = document.getElementById('cuenta-password-guardar');
+
+  errorEl.textContent = '';
+
+  if (!actual || !nueva || !confirmar) {
+    errorEl.textContent = 'Llena los tres campos.';
+    return;
+  }
+
+  if (nueva !== confirmar) {
+    errorEl.textContent = 'La nueva contraseña y su confirmación no coinciden.';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+
+  try {
+    const session = getSession();
+    const { error } = await supabase.rpc('cambiar_contrasena', {
+      p_usuario_id: session.id,
+      p_password_actual: actual,
+      p_password_nueva: nueva,
+    });
+
+    if (error) {
+      const msg = error.message || '';
+      if (msg.includes('PASSWORD_ACTUAL_INCORRECTA')) {
+        errorEl.textContent = 'La contraseña actual no es correcta.';
+      } else {
+        errorEl.textContent = 'No se pudo cambiar la contraseña. Intenta de nuevo.';
+      }
+      return;
+    }
+
+    document.getElementById('cuenta-password-actual').value = '';
+    document.getElementById('cuenta-password-nueva').value = '';
+    document.getElementById('cuenta-password-confirmar').value = '';
+    toast('Contraseña actualizada.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Cambiar contraseña';
+  }
+}
+
+function initCuenta() {
+  document.getElementById('btn-mi-cuenta').addEventListener('click', openCuentaPanel);
+  document.getElementById('cuenta-cerrar').addEventListener('click', closeCuentaPanel);
+  document.getElementById('cuenta-password-guardar').addEventListener('click', guardarPasswordPropia);
+}
+
 // ---------- Init ----------
 
 function init() {
@@ -1460,6 +1536,7 @@ function init() {
   initAbonos();
   initHistorial();
   initReportes();
+  initCuenta();
 
   populateLoginUsuarios();
   const session = getSession();
