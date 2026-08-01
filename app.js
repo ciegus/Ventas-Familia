@@ -1489,6 +1489,7 @@ async function loadReportes() {
     { data: clientesSaldo, error: clientesError },
     { data: pagosPeriodo, error: pagosError },
     { data: itemsPeriodo, error: itemsError },
+    { data: vendedoresConsigna, error: consignaError },
   ] = await Promise.all([
     supabase.from('ventas')
       .select('id, total, vendedor:usuarios!ventas_vendedor_id_fkey(nombre)')
@@ -1511,15 +1512,20 @@ async function loadReportes() {
       `)
       .gte('venta.creado_en', inicioISO).lt('venta.creado_en', finISO)
       .eq('venta.anulado', false),
+    supabase.from('usuarios')
+      .select('id, nombre, deuda_consigna')
+      .eq('rol', 'vendedor').gt('deuda_consigna', 0)
+      .order('deuda_consigna', { ascending: false }),
   ]);
 
-  if (ventasError || abonosError || clientesError || pagosError || itemsError) {
+  if (ventasError || abonosError || clientesError || pagosError || itemsError || consignaError) {
     toast('No se pudo cargar Reportes.', 'error');
     return;
   }
 
   renderReportesTotales(ventasPeriodo || [], pagosPeriodo || []);
   renderReportesSaldos(clientesSaldo || []);
+  renderReportesConsigna(vendedoresConsigna || []);
   renderReportesVendedores(ventasPeriodo || [], abonosPeriodo || [], pagosPeriodo || []);
   renderReportesDetalle(itemsPeriodo || []);
 }
@@ -1549,6 +1555,26 @@ function renderReportesSaldos(clientes) {
     item.innerHTML = `
       <div class="li-main"><div class="li-title">${escapeHtml(cliente.nombre)}</div></div>
       <div class="li-badge pendiente">${money.format(Number(cliente.saldo_pendiente))}</div>
+    `;
+    list.appendChild(item);
+  });
+}
+
+function renderReportesConsigna(vendedores) {
+  const total = vendedores.reduce((sum, v) => sum + Number(v.deuda_consigna), 0);
+  document.getElementById('rep-consigna-total').textContent = money.format(total);
+
+  const list = document.getElementById('rep-consigna-list');
+  const empty = document.getElementById('rep-consigna-empty');
+  list.innerHTML = '';
+  empty.style.display = vendedores.length === 0 ? 'block' : 'none';
+
+  vendedores.forEach((v) => {
+    const item = document.createElement('div');
+    item.className = 'list-item';
+    item.innerHTML = `
+      <div class="li-main"><div class="li-title">${escapeHtml(v.nombre)}</div></div>
+      <div class="li-badge pendiente">${money.format(Number(v.deuda_consigna))}</div>
     `;
     list.appendChild(item);
   });
