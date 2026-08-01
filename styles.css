@@ -145,6 +145,58 @@ body {
   min-height: 18px;
 }
 
+.login-version {
+  font-size: 12px;
+  color: var(--muted);
+  margin: -12px 0 20px;
+}
+
+.login-categoria-card,
+.login-nombre-card {
+  display: block;
+  width: 100%;
+  padding: 18px 16px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.login-categoria-card:active,
+.login-nombre-card:active {
+  background: var(--card);
+  border-color: var(--accent);
+}
+
+.login-paso-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.login-paso-header span {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.btn-link {
+  width: 100%;
+  margin-top: 16px;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  color: var(--accent-dark);
+  font-size: 13px;
+  cursor: pointer;
+}
+
 /* ---------- Main shell ---------- */
 
 #view-main {
