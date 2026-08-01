@@ -1916,27 +1916,42 @@ async function loadAlmacenes() {
 }
 
 async function loadMovimientos() {
-  const { data, error } = await supabase
-    .from('movimientos_almacen')
-    .select(`
-      id, cantidad, creado_en, anulado, anulado_en,
-      producto:productos(nombre),
-      origen:almacenes!movimientos_almacen_almacen_origen_id_fkey(usuario_id, usuarios(nombre)),
-      destino:almacenes!movimientos_almacen_almacen_destino_id_fkey(usuario_id, usuarios(nombre)),
-      usuario:usuarios!movimientos_almacen_usuario_id_fkey(nombre),
-      anulador:usuarios!movimientos_almacen_anulado_por_fkey(nombre)
-    `)
-    .order('creado_en', { ascending: false })
-    .limit(200);
+  const [{ data: movs, error: movsError }, { data: pagos, error: pagosError }] = await Promise.all([
+    supabase
+      .from('movimientos_almacen')
+      .select(`
+        id, cantidad, creado_en, anulado, anulado_en,
+        producto:productos(nombre),
+        origen:almacenes!movimientos_almacen_almacen_origen_id_fkey(usuario_id, usuarios(nombre)),
+        destino:almacenes!movimientos_almacen_almacen_destino_id_fkey(usuario_id, usuarios(nombre)),
+        usuario:usuarios!movimientos_almacen_usuario_id_fkey(nombre),
+        anulador:usuarios!movimientos_almacen_anulado_por_fkey(nombre)
+      `)
+      .order('creado_en', { ascending: false })
+      .limit(200),
+    supabase
+      .from('pagos_consigna')
+      .select(`
+        id, monto, deuda_restante, creado_en, anulado, anulado_en,
+        vendedor:usuarios!pagos_consigna_vendedor_id_fkey(nombre),
+        usuario:usuarios!pagos_consigna_usuario_id_fkey(nombre),
+        anulador:usuarios!pagos_consigna_anulado_por_fkey(nombre)
+      `)
+      .order('creado_en', { ascending: false })
+      .limit(200),
+  ]);
 
-  if (error) {
+  if (movsError || pagosError) {
     toast('No se pudo cargar los movimientos.', 'error');
     movimientosCache = [];
     renderMovimientos();
     return;
   }
 
-  movimientosCache = data || [];
+  const itemsMov = (movs || []).map((m) => ({ kind: 'movimiento', creadoEn: new Date(m.creado_en), data: m }));
+  const itemsPago = (pagos || []).map((p) => ({ kind: 'pago_consigna', creadoEn: new Date(p.creado_en), data: p }));
+
+  movimientosCache = [...itemsMov, ...itemsPago].sort((a, b) => b.creadoEn - a.creadoEn);
   renderMovimientos();
 }
 
@@ -1984,7 +1999,38 @@ function renderMovimientos() {
   list.innerHTML = '';
   empty.style.display = movimientosCache.length === 0 ? 'block' : 'none';
 
-  movimientosCache.forEach((m) => {
+  movimientosCache.forEach((item) => {
+    const card = document.createElement('div');
+
+    if (item.kind === 'pago_consigna') {
+      const p = item.data;
+      const anuladoTag = p.anulado
+        ? '<div class="li-sub historial-anulado-tag">Anulado</div>'
+        : '';
+
+      card.className = 'list-item historial-item' + (p.anulado ? ' anulado' : '');
+      card.innerHTML = `
+        <div class="li-main">
+          <div class="li-title">Pago de consigna: ${escapeHtml(p.vendedor.nombre)} · ${money.format(Number(p.monto))}</div>
+          <div class="li-sub">${escapeHtml(p.usuario.nombre)} · ${fechaFmt.format(new Date(p.creado_en))}</div>
+          ${anuladoTag}
+        </div>
+        <div class="historial-item-right">
+          ${session && session.rol === 'admin' && !p.anulado ? '<button type="button" class="btn-anular">Anular</button>' : ''}
+        </div>
+      `;
+
+      if (session && session.rol === 'admin' && !p.anulado) {
+        card.querySelector('.btn-anular').addEventListener('click', (e) => {
+          confirmarAnularPagoConsigna(p.id, e.currentTarget);
+        });
+      }
+
+      list.appendChild(card);
+      return;
+    }
+
+    const m = item.data;
     const descripcion = m.origen
       ? `Traspaso: ${escapeHtml(nombreAlmacen(m.origen))} → ${escapeHtml(nombreAlmacen(m.destino))}`
       : `Entrada → ${escapeHtml(nombreAlmacen(m.destino))}`;
@@ -1993,7 +2039,6 @@ function renderMovimientos() {
       ? '<div class="li-sub historial-anulado-tag">Anulado</div>'
       : '';
 
-    const card = document.createElement('div');
     card.className = 'list-item historial-item' + (m.anulado ? ' anulado' : '');
     card.innerHTML = `
       <div class="li-main">
@@ -2048,7 +2093,45 @@ async function confirmarAnularMovimiento(movimientoId, btn) {
 
     toast('Movimiento anulado.');
     loadMovimientos();
+    loadDeudaConsigna();
     loadProductos();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Anular';
+  }
+}
+
+async function confirmarAnularPagoConsigna(pagoId, btn) {
+  if (!assertOnline()) return;
+
+  const ok = window.confirm('¿Seguro que quieres anular este pago de consigna? No se puede deshacer.');
+  if (!ok) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Anulando...';
+
+  try {
+    const session = getSession();
+    const { error } = await supabase.rpc('anular_pago_consigna', {
+      p_pago_id: pagoId,
+      p_usuario_id: session.id,
+    });
+
+    if (error) {
+      const msg = error.message || '';
+      if (msg.includes('YA_ANULADO')) {
+        toast('Ese pago ya estaba anulado.', 'error');
+      } else if (msg.includes('PERMISO_DENEGADO')) {
+        toast('Solo un administrador puede registrar/anular pagos de consigna.', 'error');
+      } else {
+        toast('No se pudo anular. Intenta de nuevo.', 'error');
+      }
+      return;
+    }
+
+    toast('Pago de consigna anulado.');
+    loadMovimientos();
+    loadDeudaConsigna();
   } finally {
     btn.disabled = false;
     btn.textContent = 'Anular';
