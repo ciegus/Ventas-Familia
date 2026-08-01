@@ -93,9 +93,12 @@ pantalla "Movimientos", ver [docs/superpowers/specs/2026-07-30-multi-almacen-des
 para el diseño completo), 14 (Deuda de consigna por vendedor — cuenta interna
 Papá↔vendedor separada del crédito a Clientes, dentro de la pantalla "Movimientos", ver
 [docs/superpowers/specs/2026-07-31-consigna-vendedores-design.md](docs/superpowers/specs/2026-07-31-consigna-vendedores-design.md)
+para el diseño completo), 15 (Login en 2 pasos categoría→nombre→contraseña + versión
+visible con botón de actualización, ver
+[docs/superpowers/specs/2026-08-01-login-2pasos-version-design.md](docs/superpowers/specs/2026-08-01-login-2pasos-version-design.md)
 para el diseño completo).
 
-**Pendiente:** ninguno de los tickets 01-14. Próximos pasos por definir con Luis.
+**Pendiente:** ninguno de los tickets 01-15. Próximos pasos por definir con Luis.
 
 Los usuarios y roles fijos descritos abajo ("Usuarios y roles") dejaron de ser fijos con
 el ticket 12 — ahora son altas/bajas dinámicas desde la app (sección "Mi cuenta"). El
