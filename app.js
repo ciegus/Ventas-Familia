@@ -1905,6 +1905,8 @@ async function saveUsuario() {
 let movimientosCache = [];
 let almacenesCache = [];
 let productosParaMovimientoCache = [];
+let vendedoresParaConsignaCache = [];
+let movimientoReciboFolioActual = null;
 
 async function loadAlmacenes() {
   const { data, error } = await supabase
@@ -2034,8 +2036,15 @@ async function openMovimientoForm() {
   });
   document.getElementById('movimiento-origen-row').style.display = 'none';
   document.getElementById('movimiento-destino-row').style.display = 'none';
+  document.getElementById('movimiento-producto-row').style.display = 'block';
+  document.getElementById('movimiento-cantidad-row').style.display = 'block';
+  document.getElementById('movimiento-vendedor-row').style.display = 'none';
+  document.getElementById('movimiento-monto-row').style.display = 'none';
   document.getElementById('movimiento-cantidad').value = '';
+  document.getElementById('movimiento-monto').value = '';
   document.getElementById('movimiento-form-error').textContent = '';
+  document.getElementById('movimiento-paso-armar').style.display = 'block';
+  document.getElementById('movimiento-paso-recibo').style.display = 'none';
 
   await loadAlmacenes();
 
@@ -2061,6 +2070,23 @@ async function openMovimientoForm() {
     });
   });
 
+  const { data: vendedores } = await supabase
+    .from('usuarios')
+    .select('id, nombre')
+    .eq('rol', 'vendedor')
+    .eq('activo', true)
+    .order('nombre');
+  vendedoresParaConsignaCache = vendedores || [];
+
+  const vendedorSelect = document.getElementById('movimiento-vendedor');
+  vendedorSelect.innerHTML = '';
+  vendedoresParaConsignaCache.forEach((v) => {
+    const opt = document.createElement('option');
+    opt.value = v.id;
+    opt.textContent = v.nombre;
+    vendedorSelect.appendChild(opt);
+  });
+
   document.getElementById('movimiento-sheet').classList.add('show');
 }
 
@@ -2072,12 +2098,69 @@ async function guardarMovimiento() {
   if (!assertOnline()) return;
 
   const tipo = document.querySelector('#movimiento-tipo-toggle .toggle-btn.active').dataset.tipo;
-  const productoId = document.getElementById('movimiento-producto').value;
-  const cantidad = parseInt(document.getElementById('movimiento-cantidad').value, 10);
   const errorEl = document.getElementById('movimiento-form-error');
   const btn = document.getElementById('movimiento-guardar');
 
   errorEl.textContent = '';
+
+  if (tipo === 'pago_consigna') {
+    const vendedorId = document.getElementById('movimiento-vendedor').value;
+    const monto = parseFloat(document.getElementById('movimiento-monto').value);
+    const vendedor = vendedoresParaConsignaCache.find((v) => v.id === vendedorId);
+
+    if (!vendedorId) {
+      errorEl.textContent = 'Selecciona un vendedor.';
+      return;
+    }
+    if (!Number.isFinite(monto) || monto <= 0) {
+      errorEl.textContent = 'El monto debe ser mayor a $0.';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Guardando...';
+
+    try {
+      const session = getSession();
+      const { data, error } = await supabase.rpc('registrar_pago_consigna', {
+        p_vendedor_id: vendedorId,
+        p_monto: monto,
+        p_usuario_id: session.id,
+      });
+
+      if (error) {
+        const msg = error.message || '';
+        if (msg.includes('MONTO_EXCEDE_DEUDA')) {
+          errorEl.textContent = 'Ese pago es mayor a la deuda de consigna actual del vendedor.';
+        } else if (msg.includes('PERMISO_DENEGADO')) {
+          errorEl.textContent = 'Solo un administrador puede registrar/anular pagos de consigna.';
+        } else {
+          errorEl.textContent = 'No se pudo registrar el pago. Intenta de nuevo.';
+        }
+        return;
+      }
+
+      const resultado = data[0];
+      mostrarReciboPagoConsigna({
+        folio: resultado.folio,
+        monto,
+        deudaRestante: Number(resultado.deuda_restante),
+        vendedor: vendedor ? vendedor.nombre : '',
+        registradoPor: session.nombre,
+        fecha: new Date(),
+      });
+
+      loadMovimientos();
+      loadDeudaConsigna();
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Guardar';
+    }
+    return;
+  }
+
+  const productoId = document.getElementById('movimiento-producto').value;
+  const cantidad = parseInt(document.getElementById('movimiento-cantidad').value, 10);
 
   if (!productoId) {
     errorEl.textContent = 'Selecciona un producto.';
@@ -2143,11 +2226,30 @@ async function guardarMovimiento() {
     closeMovimientoForm();
     toast(tipo === 'entrada' ? 'Entrada registrada.' : 'Traspaso registrado.');
     loadMovimientos();
+    loadDeudaConsigna();
     loadProductos();
   } finally {
     btn.disabled = false;
     btn.textContent = 'Guardar';
   }
+}
+
+function mostrarReciboPagoConsigna(info) {
+  const cont = document.getElementById('movimiento-recibo-contenido');
+  movimientoReciboFolioActual = info.folio;
+  cont.innerHTML = `
+    <div class="recibo-linea"><span>Folio</span><span>${escapeHtml(info.folio)}</span></div>
+    <div class="recibo-linea"><span>Fecha</span><span>${fechaFmt.format(info.fecha)}</span></div>
+    <div class="recibo-linea"><span>Registrado por</span><span>${escapeHtml(info.registradoPor)}</span></div>
+    <div class="recibo-linea"><span>Vendedor</span><span>${escapeHtml(info.vendedor)}</span></div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
+    <div class="recibo-linea total"><span>Monto pagado</span><span>${money.format(info.monto)}</span></div>
+    <div class="recibo-linea"><span>Deuda de consigna restante</span><span>${money.format(info.deudaRestante)}</span></div>
+  `;
+
+  document.getElementById('movimiento-paso-armar').style.display = 'none';
+  document.getElementById('movimiento-paso-recibo').style.display = 'block';
+  document.getElementById('movimiento-recibo-whatsapp').style.display = soportaCompartirArchivos() ? 'block' : 'none';
 }
 
 function initMovimientos() {
@@ -2156,6 +2258,13 @@ function initMovimientos() {
   document.getElementById('fab-nuevo-movimiento').addEventListener('click', openMovimientoForm);
   document.getElementById('movimiento-cancelar').addEventListener('click', closeMovimientoForm);
   document.getElementById('movimiento-guardar').addEventListener('click', guardarMovimiento);
+  document.getElementById('movimiento-recibo-cerrar').addEventListener('click', closeMovimientoForm);
+  document.getElementById('movimiento-recibo-pdf').addEventListener('click', (e) => {
+    descargarReciboPDF(document.getElementById('movimiento-recibo-contenido'), movimientoReciboFolioActual, e.currentTarget);
+  });
+  document.getElementById('movimiento-recibo-whatsapp').addEventListener('click', (e) => {
+    compartirReciboWhatsApp(document.getElementById('movimiento-recibo-contenido'), movimientoReciboFolioActual, e.currentTarget);
+  });
 
   document.querySelectorAll('#movimiento-tipo-toggle .toggle-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -2163,9 +2272,16 @@ function initMovimientos() {
         .forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
 
-      const esTraspaso = btn.dataset.tipo === 'traspaso';
+      const tipo = btn.dataset.tipo;
+      const esTraspaso = tipo === 'traspaso';
+      const esPagoConsigna = tipo === 'pago_consigna';
+
       document.getElementById('movimiento-origen-row').style.display = esTraspaso ? 'block' : 'none';
       document.getElementById('movimiento-destino-row').style.display = esTraspaso ? 'block' : 'none';
+      document.getElementById('movimiento-producto-row').style.display = esPagoConsigna ? 'none' : 'block';
+      document.getElementById('movimiento-cantidad-row').style.display = esPagoConsigna ? 'none' : 'block';
+      document.getElementById('movimiento-vendedor-row').style.display = esPagoConsigna ? 'block' : 'none';
+      document.getElementById('movimiento-monto-row').style.display = esPagoConsigna ? 'block' : 'none';
     });
   });
 }
