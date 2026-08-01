@@ -90,9 +90,12 @@ Completados: 01 (esquema Supabase), 02 (shell + login), 03 (Clientes), 04 (Inven
 PDF/WhatsApp), 10 (Dashboard principal), 11 (Reportes + ganancia neta por vendedor),
 12 (Gestión de usuarios), 13 (Inventario multi-almacén — stock distribuido por almacén,
 pantalla "Movimientos", ver [docs/superpowers/specs/2026-07-30-multi-almacen-design.md](docs/superpowers/specs/2026-07-30-multi-almacen-design.md)
+para el diseño completo), 14 (Deuda de consigna por vendedor — cuenta interna
+Papá↔vendedor separada del crédito a Clientes, dentro de la pantalla "Movimientos", ver
+[docs/superpowers/specs/2026-07-31-consigna-vendedores-design.md](docs/superpowers/specs/2026-07-31-consigna-vendedores-design.md)
 para el diseño completo).
 
-**Pendiente:** ninguno de los tickets 01-13. Próximos pasos por definir con Luis.
+**Pendiente:** ninguno de los tickets 01-14. Próximos pasos por definir con Luis.
 
 Los usuarios y roles fijos descritos abajo ("Usuarios y roles") dejaron de ser fijos con
 el ticket 12 — ahora son altas/bajas dinámicas desde la app (sección "Mi cuenta"). El

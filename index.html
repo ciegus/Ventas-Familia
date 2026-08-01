@@ -138,6 +138,13 @@
           Ningún cliente tiene saldo pendiente.
         </p>
 
+        <h3 class="fs-subtitle">Deuda de consigna pendiente (a hoy)</h3>
+        <div class="reportes-saldo-total" id="rep-consigna-total">$0.00</div>
+        <div id="rep-consigna-list" class="list"></div>
+        <p id="rep-consigna-empty" class="tab-placeholder" style="display:none;">
+          Ningún vendedor tiene deuda de consigna pendiente.
+        </p>
+
         <h3 class="fs-subtitle">Por vendedor (periodo seleccionado)</h3>
         <div class="reportes-table-wrap">
           <table class="reportes-table">
@@ -260,33 +267,52 @@
   <div id="movimiento-sheet" class="sheet-overlay">
     <div class="sheet">
       <h3>Nuevo movimiento</h3>
-      <div class="field">
-        <label>Tipo</label>
-        <div class="toggle-group" id="movimiento-tipo-toggle">
-          <button type="button" class="toggle-btn active" data-tipo="entrada">Entrada</button>
-          <button type="button" class="toggle-btn" data-tipo="traspaso">Traspaso</button>
+
+      <div id="movimiento-paso-armar">
+        <div class="field">
+          <label>Tipo</label>
+          <div class="toggle-group" id="movimiento-tipo-toggle">
+            <button type="button" class="toggle-btn active" data-tipo="entrada">Entrada</button>
+            <button type="button" class="toggle-btn" data-tipo="traspaso">Traspaso</button>
+            <button type="button" class="toggle-btn" data-tipo="pago_consigna">Pago consigna</button>
+          </div>
+        </div>
+        <div class="field" id="movimiento-producto-row">
+          <label for="movimiento-producto">Producto</label>
+          <select id="movimiento-producto"></select>
+        </div>
+        <div class="field" id="movimiento-origen-row" style="display:none;">
+          <label for="movimiento-origen">Almacén origen</label>
+          <select id="movimiento-origen"></select>
+        </div>
+        <div class="field" id="movimiento-destino-row" style="display:none;">
+          <label for="movimiento-destino">Almacén destino</label>
+          <select id="movimiento-destino"></select>
+        </div>
+        <div class="field" id="movimiento-cantidad-row">
+          <label for="movimiento-cantidad">Cantidad</label>
+          <input id="movimiento-cantidad" type="number" step="1" min="1" placeholder="0" />
+        </div>
+        <div class="field" id="movimiento-vendedor-row" style="display:none;">
+          <label for="movimiento-vendedor">Vendedor</label>
+          <select id="movimiento-vendedor"></select>
+        </div>
+        <div class="field" id="movimiento-monto-row" style="display:none;">
+          <label for="movimiento-monto">Monto pagado (MXN)</label>
+          <input id="movimiento-monto" type="number" step="0.01" min="0" placeholder="0.00" />
+        </div>
+        <p id="movimiento-form-error" class="error-msg"></p>
+        <div class="sheet-actions">
+          <button id="movimiento-cancelar" type="button" class="btn btn-outline">Cancelar</button>
+          <button id="movimiento-guardar" type="button" class="btn btn-primary">Guardar</button>
         </div>
       </div>
-      <div class="field">
-        <label for="movimiento-producto">Producto</label>
-        <select id="movimiento-producto"></select>
-      </div>
-      <div class="field" id="movimiento-origen-row" style="display:none;">
-        <label for="movimiento-origen">Almacén origen</label>
-        <select id="movimiento-origen"></select>
-      </div>
-      <div class="field" id="movimiento-destino-row" style="display:none;">
-        <label for="movimiento-destino">Almacén destino</label>
-        <select id="movimiento-destino"></select>
-      </div>
-      <div class="field">
-        <label for="movimiento-cantidad">Cantidad</label>
-        <input id="movimiento-cantidad" type="number" step="1" min="1" placeholder="0" />
-      </div>
-      <p id="movimiento-form-error" class="error-msg"></p>
-      <div class="sheet-actions">
-        <button id="movimiento-cancelar" type="button" class="btn btn-outline">Cancelar</button>
-        <button id="movimiento-guardar" type="button" class="btn btn-primary">Guardar</button>
+
+      <div id="movimiento-paso-recibo" style="display:none;">
+        <div class="card" id="movimiento-recibo-contenido"></div>
+        <button id="movimiento-recibo-pdf" type="button" class="btn btn-outline">Descargar PDF</button>
+        <button id="movimiento-recibo-whatsapp" type="button" class="btn btn-outline" style="display:none;">Compartir WhatsApp</button>
+        <button id="movimiento-recibo-cerrar" type="button" class="btn btn-primary">Listo</button>
       </div>
     </div>
   </div>
@@ -491,6 +517,13 @@
     </div>
 
     <div class="fs-content">
+      <h3 class="fs-subtitle">Deuda de consigna por vendedor</h3>
+      <div id="consigna-deuda-list" class="list"></div>
+      <p id="consigna-deuda-empty" class="tab-placeholder" style="display:none;">
+        No hay vendedores registrados.
+      </p>
+
+      <h3 class="fs-subtitle">Historial de movimientos</h3>
       <div id="movimientos-list" class="list"></div>
       <p id="movimientos-empty" class="tab-placeholder" style="display:none;">
         Aún no hay movimientos de almacén registrados.

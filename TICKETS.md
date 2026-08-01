@@ -423,3 +423,56 @@ vendedor podía dar de alta stock de la nada) — el botón "+" de Inventario ya
 muestra a vendedores; (3) se eliminaron 8 ventas de prueba del 2026-07-27 (previas a
 este ticket, detectadas en el review final) que habrían repuesto stock al almacén
 equivocado si alguna vez se anulaban.
+
+## 14 — Deuda de consigna por vendedor ✅
+
+**Blocked by:** 13 (completado)
+
+**Qué construye:** cuenta interna Papá↔vendedor, separada del crédito a `Clientes` —
+rastrea cuánto le debe cada vendedor por costo de mercancía que se le dio en consigna.
+La deuda sube al traspasarle producto (Central→vendedor o vendedor→vendedor), baja
+cuando paga en efectivo o devuelve físicamente lo que no vendió (traspaso de vuelta).
+Vender el producto a un cliente final no toca esta deuda — el vendedor sigue debiendo
+el costo hasta pagar o devolver. Diseño completo en
+[docs/superpowers/specs/2026-07-31-consigna-vendedores-design.md](docs/superpowers/specs/2026-07-31-consigna-vendedores-design.md).
+
+**Estado:** completado — columna `usuarios.deuda_consigna` y `movimientos_almacen.costo_snapshot`
+(costo congelado al momento de cada movimiento, igual que `venta_items.costo_unitario`),
+tabla nueva `pagos_consigna`. Rework de `registrar_traspaso()`/`registrar_entrada()`
+(graban costo_snapshot y mueven deuda solo si el dueño del almacén tiene `rol='vendedor'`)
+y `anular_movimiento()` (revierte la deuda simétricamente). Funciones nuevas
+`registrar_pago_consigna()` (bloquea pagos mayores a la deuda actual con
+`MONTO_EXCEDE_DEUDA`, igual criterio que abono de cliente) y `anular_pago_consigna()`.
+Frontend: pantalla "📦 Movimientos" gana un resumen "Deuda de consigna por vendedor"
+(visible para todos) y un tercer tipo en el formulario de movimientos ("Pago consigna",
+admin-only) con recibo (folio, monto, deuda restante — descarga PDF/WhatsApp igual que
+venta/abono); el historial mezcla movimientos y pagos de consigna en una sola lista
+cronológica con anulación. Reportes gana "Deuda de consigna pendiente (a hoy)" con
+listado por vendedor de mayor a menor.
+
+Verificado con SQL directo contra Supabase en vivo (Tasks 1-4) y en navegador real
+(Task 10): traspaso Central→Angie generó deuda exacta (`cantidad × costo`); traspaso
+vendedor→vendedor movió la deuda de uno a otro sin cambiar el total; traspaso a un
+almacén de admin no generó deuda; pago válido generó folio+recibo con deuda restante
+correcta y se reflejó de inmediato en el resumen; pago mayor a la deuda actual se
+rechazó con el mensaje en español sin registrar nada; anular un pago devolvió la deuda;
+anular un traspaso con stock ya movido se bloqueó (`STOCK_INSUFICIENTE_PARA_ANULAR`) sin
+tocar la deuda; un vendedor logueado ve el resumen e historial completos (transparencia)
+pero no ve el botón (+) ni "Anular" en ningún renglón; Reportes mostró el total y listado
+consistentes con Movimientos. Sin errores en consola durante toda la sesión. Toda la
+deuda/stock de prueba generada durante la verificación se revirtió antes de cerrar el
+ticket — la base quedó exactamente en el estado previo (deuda en 0 para los 5 usuarios,
+stock del producto de prueba de vuelta a Central=46).
+
+- [x] Esquema: `usuarios.deuda_consigna`, `movimientos_almacen.costo_snapshot`, `pagos_consigna`
+- [x] Rework `registrar_traspaso()`/`registrar_entrada()` (costo snapshot + deuda)
+- [x] Rework `anular_movimiento()` (revierte deuda simétricamente)
+- [x] `registrar_pago_consigna()`/`anular_pago_consigna()` (+ `generate_folio()` extendida)
+- [x] Movimientos: resumen "Deuda por vendedor" + tercer tipo "Pago consigna" + recibo
+- [x] Historial mezclado (movimientos + pagos de consigna) con anulación
+- [x] Reportes: "Deuda de consigna pendiente" + listado por vendedor
+
+**Nota:** queda un registro histórico `pagos_consigna` de prueba, ya anulado (folio
+`REC-D4F3637B`, vendedor Angie, monto $200, sin efecto en ningún saldo) — se dejó tal
+cual por la regla de "nunca se borra un registro físicamente"; aparecerá en el historial
+de Movimientos marcado "Anulado" si Luis lo revisa.

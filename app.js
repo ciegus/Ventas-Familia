@@ -1489,6 +1489,7 @@ async function loadReportes() {
     { data: clientesSaldo, error: clientesError },
     { data: pagosPeriodo, error: pagosError },
     { data: itemsPeriodo, error: itemsError },
+    { data: vendedoresConsigna, error: consignaError },
   ] = await Promise.all([
     supabase.from('ventas')
       .select('id, total, vendedor:usuarios!ventas_vendedor_id_fkey(nombre)')
@@ -1511,15 +1512,20 @@ async function loadReportes() {
       `)
       .gte('venta.creado_en', inicioISO).lt('venta.creado_en', finISO)
       .eq('venta.anulado', false),
+    supabase.from('usuarios')
+      .select('id, nombre, deuda_consigna')
+      .eq('rol', 'vendedor').gt('deuda_consigna', 0)
+      .order('deuda_consigna', { ascending: false }),
   ]);
 
-  if (ventasError || abonosError || clientesError || pagosError || itemsError) {
+  if (ventasError || abonosError || clientesError || pagosError || itemsError || consignaError) {
     toast('No se pudo cargar Reportes.', 'error');
     return;
   }
 
   renderReportesTotales(ventasPeriodo || [], pagosPeriodo || []);
   renderReportesSaldos(clientesSaldo || []);
+  renderReportesConsigna(vendedoresConsigna || []);
   renderReportesVendedores(ventasPeriodo || [], abonosPeriodo || [], pagosPeriodo || []);
   renderReportesDetalle(itemsPeriodo || []);
 }
@@ -1549,6 +1555,26 @@ function renderReportesSaldos(clientes) {
     item.innerHTML = `
       <div class="li-main"><div class="li-title">${escapeHtml(cliente.nombre)}</div></div>
       <div class="li-badge pendiente">${money.format(Number(cliente.saldo_pendiente))}</div>
+    `;
+    list.appendChild(item);
+  });
+}
+
+function renderReportesConsigna(vendedores) {
+  const total = vendedores.reduce((sum, v) => sum + Number(v.deuda_consigna), 0);
+  document.getElementById('rep-consigna-total').textContent = money.format(total);
+
+  const list = document.getElementById('rep-consigna-list');
+  const empty = document.getElementById('rep-consigna-empty');
+  list.innerHTML = '';
+  empty.style.display = vendedores.length === 0 ? 'block' : 'none';
+
+  vendedores.forEach((v) => {
+    const item = document.createElement('div');
+    item.className = 'list-item';
+    item.innerHTML = `
+      <div class="li-main"><div class="li-title">${escapeHtml(v.nombre)}</div></div>
+      <div class="li-badge pendiente">${money.format(Number(v.deuda_consigna))}</div>
     `;
     list.appendChild(item);
   });
@@ -1905,6 +1931,8 @@ async function saveUsuario() {
 let movimientosCache = [];
 let almacenesCache = [];
 let productosParaMovimientoCache = [];
+let vendedoresParaConsignaCache = [];
+let movimientoReciboFolioActual = null;
 
 async function loadAlmacenes() {
   const { data, error } = await supabase
@@ -1914,28 +1942,79 @@ async function loadAlmacenes() {
 }
 
 async function loadMovimientos() {
-  const { data, error } = await supabase
-    .from('movimientos_almacen')
-    .select(`
-      id, cantidad, creado_en, anulado, anulado_en,
-      producto:productos(nombre),
-      origen:almacenes!movimientos_almacen_almacen_origen_id_fkey(usuario_id, usuarios(nombre)),
-      destino:almacenes!movimientos_almacen_almacen_destino_id_fkey(usuario_id, usuarios(nombre)),
-      usuario:usuarios!movimientos_almacen_usuario_id_fkey(nombre),
-      anulador:usuarios!movimientos_almacen_anulado_por_fkey(nombre)
-    `)
-    .order('creado_en', { ascending: false })
-    .limit(200);
+  const [{ data: movs, error: movsError }, { data: pagos, error: pagosError }] = await Promise.all([
+    supabase
+      .from('movimientos_almacen')
+      .select(`
+        id, cantidad, creado_en, anulado, anulado_en,
+        producto:productos(nombre),
+        origen:almacenes!movimientos_almacen_almacen_origen_id_fkey(usuario_id, usuarios(nombre)),
+        destino:almacenes!movimientos_almacen_almacen_destino_id_fkey(usuario_id, usuarios(nombre)),
+        usuario:usuarios!movimientos_almacen_usuario_id_fkey(nombre),
+        anulador:usuarios!movimientos_almacen_anulado_por_fkey(nombre)
+      `)
+      .order('creado_en', { ascending: false })
+      .limit(200),
+    supabase
+      .from('pagos_consigna')
+      .select(`
+        id, monto, deuda_restante, creado_en, anulado, anulado_en,
+        vendedor:usuarios!pagos_consigna_vendedor_id_fkey(nombre),
+        usuario:usuarios!pagos_consigna_usuario_id_fkey(nombre),
+        anulador:usuarios!pagos_consigna_anulado_por_fkey(nombre)
+      `)
+      .order('creado_en', { ascending: false })
+      .limit(200),
+  ]);
 
-  if (error) {
+  if (movsError || pagosError) {
     toast('No se pudo cargar los movimientos.', 'error');
     movimientosCache = [];
     renderMovimientos();
     return;
   }
 
-  movimientosCache = data || [];
+  const itemsMov = (movs || []).map((m) => ({ kind: 'movimiento', creadoEn: new Date(m.creado_en), data: m }));
+  const itemsPago = (pagos || []).map((p) => ({ kind: 'pago_consigna', creadoEn: new Date(p.creado_en), data: p }));
+
+  movimientosCache = [...itemsMov, ...itemsPago].sort((a, b) => b.creadoEn - a.creadoEn);
   renderMovimientos();
+}
+
+let deudaConsignaCache = [];
+
+async function loadDeudaConsigna() {
+  const { data, error } = await supabase
+    .from('usuarios')
+    .select('id, nombre, deuda_consigna')
+    .eq('rol', 'vendedor')
+    .order('nombre');
+
+  if (error) {
+    deudaConsignaCache = [];
+    renderDeudaConsigna();
+    return;
+  }
+
+  deudaConsignaCache = data || [];
+  renderDeudaConsigna();
+}
+
+function renderDeudaConsigna() {
+  const list = document.getElementById('consigna-deuda-list');
+  const empty = document.getElementById('consigna-deuda-empty');
+  list.innerHTML = '';
+  empty.style.display = deudaConsignaCache.length === 0 ? 'block' : 'none';
+
+  deudaConsignaCache.forEach((v) => {
+    const item = document.createElement('div');
+    item.className = 'list-item';
+    item.innerHTML = `
+      <div class="li-main"><div class="li-title">${escapeHtml(v.nombre)}</div></div>
+      <div class="li-badge ${Number(v.deuda_consigna) > 0 ? 'pendiente' : 'al-dia'}">${money.format(Number(v.deuda_consigna))}</div>
+    `;
+    list.appendChild(item);
+  });
 }
 
 function renderMovimientos() {
@@ -1946,7 +2025,38 @@ function renderMovimientos() {
   list.innerHTML = '';
   empty.style.display = movimientosCache.length === 0 ? 'block' : 'none';
 
-  movimientosCache.forEach((m) => {
+  movimientosCache.forEach((item) => {
+    const card = document.createElement('div');
+
+    if (item.kind === 'pago_consigna') {
+      const p = item.data;
+      const anuladoTag = p.anulado
+        ? '<div class="li-sub historial-anulado-tag">Anulado</div>'
+        : '';
+
+      card.className = 'list-item historial-item' + (p.anulado ? ' anulado' : '');
+      card.innerHTML = `
+        <div class="li-main">
+          <div class="li-title">Pago de consigna: ${escapeHtml(p.vendedor.nombre)} · ${money.format(Number(p.monto))}</div>
+          <div class="li-sub">${escapeHtml(p.usuario.nombre)} · ${fechaFmt.format(new Date(p.creado_en))}</div>
+          ${anuladoTag}
+        </div>
+        <div class="historial-item-right">
+          ${session && session.rol === 'admin' && !p.anulado ? '<button type="button" class="btn-anular">Anular</button>' : ''}
+        </div>
+      `;
+
+      if (session && session.rol === 'admin' && !p.anulado) {
+        card.querySelector('.btn-anular').addEventListener('click', (e) => {
+          confirmarAnularPagoConsigna(p.id, e.currentTarget);
+        });
+      }
+
+      list.appendChild(card);
+      return;
+    }
+
+    const m = item.data;
     const descripcion = m.origen
       ? `Traspaso: ${escapeHtml(nombreAlmacen(m.origen))} → ${escapeHtml(nombreAlmacen(m.destino))}`
       : `Entrada → ${escapeHtml(nombreAlmacen(m.destino))}`;
@@ -1955,7 +2065,6 @@ function renderMovimientos() {
       ? '<div class="li-sub historial-anulado-tag">Anulado</div>'
       : '';
 
-    const card = document.createElement('div');
     card.className = 'list-item historial-item' + (m.anulado ? ' anulado' : '');
     card.innerHTML = `
       <div class="li-main">
@@ -2010,7 +2119,45 @@ async function confirmarAnularMovimiento(movimientoId, btn) {
 
     toast('Movimiento anulado.');
     loadMovimientos();
+    loadDeudaConsigna();
     loadProductos();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Anular';
+  }
+}
+
+async function confirmarAnularPagoConsigna(pagoId, btn) {
+  if (!assertOnline()) return;
+
+  const ok = window.confirm('¿Seguro que quieres anular este pago de consigna? No se puede deshacer.');
+  if (!ok) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Anulando...';
+
+  try {
+    const session = getSession();
+    const { error } = await supabase.rpc('anular_pago_consigna', {
+      p_pago_id: pagoId,
+      p_usuario_id: session.id,
+    });
+
+    if (error) {
+      const msg = error.message || '';
+      if (msg.includes('YA_ANULADO')) {
+        toast('Ese pago ya estaba anulado.', 'error');
+      } else if (msg.includes('PERMISO_DENEGADO')) {
+        toast('Solo un administrador puede registrar/anular pagos de consigna.', 'error');
+      } else {
+        toast('No se pudo anular. Intenta de nuevo.', 'error');
+      }
+      return;
+    }
+
+    toast('Pago de consigna anulado.');
+    loadMovimientos();
+    loadDeudaConsigna();
   } finally {
     btn.disabled = false;
     btn.textContent = 'Anular';
@@ -2021,7 +2168,7 @@ async function openMovimientosPanel() {
   const session = getSession();
   document.getElementById('fab-nuevo-movimiento').classList.toggle('show', session.rol === 'admin');
   document.getElementById('movimientos-panel').classList.add('show');
-  await loadMovimientos();
+  await Promise.all([loadMovimientos(), loadDeudaConsigna()]);
 }
 
 function closeMovimientosPanel() {
@@ -2034,8 +2181,15 @@ async function openMovimientoForm() {
   });
   document.getElementById('movimiento-origen-row').style.display = 'none';
   document.getElementById('movimiento-destino-row').style.display = 'none';
+  document.getElementById('movimiento-producto-row').style.display = 'block';
+  document.getElementById('movimiento-cantidad-row').style.display = 'block';
+  document.getElementById('movimiento-vendedor-row').style.display = 'none';
+  document.getElementById('movimiento-monto-row').style.display = 'none';
   document.getElementById('movimiento-cantidad').value = '';
+  document.getElementById('movimiento-monto').value = '';
   document.getElementById('movimiento-form-error').textContent = '';
+  document.getElementById('movimiento-paso-armar').style.display = 'block';
+  document.getElementById('movimiento-paso-recibo').style.display = 'none';
 
   await loadAlmacenes();
 
@@ -2061,6 +2215,23 @@ async function openMovimientoForm() {
     });
   });
 
+  const { data: vendedores } = await supabase
+    .from('usuarios')
+    .select('id, nombre')
+    .eq('rol', 'vendedor')
+    .eq('activo', true)
+    .order('nombre');
+  vendedoresParaConsignaCache = vendedores || [];
+
+  const vendedorSelect = document.getElementById('movimiento-vendedor');
+  vendedorSelect.innerHTML = '';
+  vendedoresParaConsignaCache.forEach((v) => {
+    const opt = document.createElement('option');
+    opt.value = v.id;
+    opt.textContent = v.nombre;
+    vendedorSelect.appendChild(opt);
+  });
+
   document.getElementById('movimiento-sheet').classList.add('show');
 }
 
@@ -2072,12 +2243,69 @@ async function guardarMovimiento() {
   if (!assertOnline()) return;
 
   const tipo = document.querySelector('#movimiento-tipo-toggle .toggle-btn.active').dataset.tipo;
-  const productoId = document.getElementById('movimiento-producto').value;
-  const cantidad = parseInt(document.getElementById('movimiento-cantidad').value, 10);
   const errorEl = document.getElementById('movimiento-form-error');
   const btn = document.getElementById('movimiento-guardar');
 
   errorEl.textContent = '';
+
+  if (tipo === 'pago_consigna') {
+    const vendedorId = document.getElementById('movimiento-vendedor').value;
+    const monto = parseFloat(document.getElementById('movimiento-monto').value);
+    const vendedor = vendedoresParaConsignaCache.find((v) => v.id === vendedorId);
+
+    if (!vendedorId) {
+      errorEl.textContent = 'Selecciona un vendedor.';
+      return;
+    }
+    if (!Number.isFinite(monto) || monto <= 0) {
+      errorEl.textContent = 'El monto debe ser mayor a $0.';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Guardando...';
+
+    try {
+      const session = getSession();
+      const { data, error } = await supabase.rpc('registrar_pago_consigna', {
+        p_vendedor_id: vendedorId,
+        p_monto: monto,
+        p_usuario_id: session.id,
+      });
+
+      if (error) {
+        const msg = error.message || '';
+        if (msg.includes('MONTO_EXCEDE_DEUDA')) {
+          errorEl.textContent = 'Ese pago es mayor a la deuda de consigna actual del vendedor.';
+        } else if (msg.includes('PERMISO_DENEGADO')) {
+          errorEl.textContent = 'Solo un administrador puede registrar/anular pagos de consigna.';
+        } else {
+          errorEl.textContent = 'No se pudo registrar el pago. Intenta de nuevo.';
+        }
+        return;
+      }
+
+      const resultado = data[0];
+      mostrarReciboPagoConsigna({
+        folio: resultado.folio,
+        monto,
+        deudaRestante: Number(resultado.deuda_restante),
+        vendedor: vendedor ? vendedor.nombre : '',
+        registradoPor: session.nombre,
+        fecha: new Date(),
+      });
+
+      loadMovimientos();
+      loadDeudaConsigna();
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Guardar';
+    }
+    return;
+  }
+
+  const productoId = document.getElementById('movimiento-producto').value;
+  const cantidad = parseInt(document.getElementById('movimiento-cantidad').value, 10);
 
   if (!productoId) {
     errorEl.textContent = 'Selecciona un producto.';
@@ -2143,11 +2371,30 @@ async function guardarMovimiento() {
     closeMovimientoForm();
     toast(tipo === 'entrada' ? 'Entrada registrada.' : 'Traspaso registrado.');
     loadMovimientos();
+    loadDeudaConsigna();
     loadProductos();
   } finally {
     btn.disabled = false;
     btn.textContent = 'Guardar';
   }
+}
+
+function mostrarReciboPagoConsigna(info) {
+  const cont = document.getElementById('movimiento-recibo-contenido');
+  movimientoReciboFolioActual = info.folio;
+  cont.innerHTML = `
+    <div class="recibo-linea"><span>Folio</span><span>${escapeHtml(info.folio)}</span></div>
+    <div class="recibo-linea"><span>Fecha</span><span>${fechaFmt.format(info.fecha)}</span></div>
+    <div class="recibo-linea"><span>Registrado por</span><span>${escapeHtml(info.registradoPor)}</span></div>
+    <div class="recibo-linea"><span>Vendedor</span><span>${escapeHtml(info.vendedor)}</span></div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
+    <div class="recibo-linea total"><span>Monto pagado</span><span>${money.format(info.monto)}</span></div>
+    <div class="recibo-linea"><span>Deuda de consigna restante</span><span>${money.format(info.deudaRestante)}</span></div>
+  `;
+
+  document.getElementById('movimiento-paso-armar').style.display = 'none';
+  document.getElementById('movimiento-paso-recibo').style.display = 'block';
+  document.getElementById('movimiento-recibo-whatsapp').style.display = soportaCompartirArchivos() ? 'block' : 'none';
 }
 
 function initMovimientos() {
@@ -2156,6 +2403,13 @@ function initMovimientos() {
   document.getElementById('fab-nuevo-movimiento').addEventListener('click', openMovimientoForm);
   document.getElementById('movimiento-cancelar').addEventListener('click', closeMovimientoForm);
   document.getElementById('movimiento-guardar').addEventListener('click', guardarMovimiento);
+  document.getElementById('movimiento-recibo-cerrar').addEventListener('click', closeMovimientoForm);
+  document.getElementById('movimiento-recibo-pdf').addEventListener('click', (e) => {
+    descargarReciboPDF(document.getElementById('movimiento-recibo-contenido'), movimientoReciboFolioActual, e.currentTarget);
+  });
+  document.getElementById('movimiento-recibo-whatsapp').addEventListener('click', (e) => {
+    compartirReciboWhatsApp(document.getElementById('movimiento-recibo-contenido'), movimientoReciboFolioActual, e.currentTarget);
+  });
 
   document.querySelectorAll('#movimiento-tipo-toggle .toggle-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -2163,9 +2417,16 @@ function initMovimientos() {
         .forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
 
-      const esTraspaso = btn.dataset.tipo === 'traspaso';
+      const tipo = btn.dataset.tipo;
+      const esTraspaso = tipo === 'traspaso';
+      const esPagoConsigna = tipo === 'pago_consigna';
+
       document.getElementById('movimiento-origen-row').style.display = esTraspaso ? 'block' : 'none';
       document.getElementById('movimiento-destino-row').style.display = esTraspaso ? 'block' : 'none';
+      document.getElementById('movimiento-producto-row').style.display = esPagoConsigna ? 'none' : 'block';
+      document.getElementById('movimiento-cantidad-row').style.display = esPagoConsigna ? 'none' : 'block';
+      document.getElementById('movimiento-vendedor-row').style.display = esPagoConsigna ? 'block' : 'none';
+      document.getElementById('movimiento-monto-row').style.display = esPagoConsigna ? 'block' : 'none';
     });
   });
 }
