@@ -1940,6 +1940,42 @@ async function loadMovimientos() {
   renderMovimientos();
 }
 
+let deudaConsignaCache = [];
+
+async function loadDeudaConsigna() {
+  const { data, error } = await supabase
+    .from('usuarios')
+    .select('id, nombre, deuda_consigna')
+    .eq('rol', 'vendedor')
+    .order('nombre');
+
+  if (error) {
+    deudaConsignaCache = [];
+    renderDeudaConsigna();
+    return;
+  }
+
+  deudaConsignaCache = data || [];
+  renderDeudaConsigna();
+}
+
+function renderDeudaConsigna() {
+  const list = document.getElementById('consigna-deuda-list');
+  const empty = document.getElementById('consigna-deuda-empty');
+  list.innerHTML = '';
+  empty.style.display = deudaConsignaCache.length === 0 ? 'block' : 'none';
+
+  deudaConsignaCache.forEach((v) => {
+    const item = document.createElement('div');
+    item.className = 'list-item';
+    item.innerHTML = `
+      <div class="li-main"><div class="li-title">${escapeHtml(v.nombre)}</div></div>
+      <div class="li-badge ${Number(v.deuda_consigna) > 0 ? 'pendiente' : 'al-dia'}">${money.format(Number(v.deuda_consigna))}</div>
+    `;
+    list.appendChild(item);
+  });
+}
+
 function renderMovimientos() {
   const list = document.getElementById('movimientos-list');
   const empty = document.getElementById('movimientos-empty');
@@ -2023,7 +2059,7 @@ async function openMovimientosPanel() {
   const session = getSession();
   document.getElementById('fab-nuevo-movimiento').classList.toggle('show', session.rol === 'admin');
   document.getElementById('movimientos-panel').classList.add('show');
-  await loadMovimientos();
+  await Promise.all([loadMovimientos(), loadDeudaConsigna()]);
 }
 
 function closeMovimientosPanel() {
