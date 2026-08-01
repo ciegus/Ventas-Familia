@@ -1,4 +1,5 @@
-const CACHE = 'vf-v12';
+importScripts('./version.js');
+const CACHE = self.CACHE_VERSION;
 const SHELL = [
   './',
   './index.html',

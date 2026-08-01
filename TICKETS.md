@@ -476,3 +476,48 @@ stock del producto de prueba de vuelta a Central=46).
 `REC-D4F3637B`, vendedor Angie, monto $200, sin efecto en ningún saldo) — se dejó tal
 cual por la regla de "nunca se borra un registro físicamente"; aparecerá en el historial
 de Movimientos marcado "Anulado" si Luis lo revisa.
+
+## 15 — Login en 2 pasos (categoría → nombre) + versión visible ✅
+
+**Blocked by:** ninguno
+
+**Qué construye:** reemplaza el `<select>` plano del login por un flujo de 3 pasos
+(categoría → nombre → contraseña) agrupado por rol (`Admin`/`Vendedores`, tomado directo
+de `usuarios.rol`), con atajo directo a contraseña cuando una categoría tiene un solo
+usuario activo. También muestra la versión de la app en el login y agrega un botón para
+forzar la revisión de actualización del Service Worker — mismo patrón que otra app de
+Luis. Diseño completo en
+[docs/superpowers/specs/2026-08-01-login-2pasos-version-design.md](docs/superpowers/specs/2026-08-01-login-2pasos-version-design.md).
+
+**Estado:** completado — archivo nuevo `version.js` (una sola línea,
+`self.CACHE_VERSION`) como fuente única de la versión, leído tanto por `sw.js` (vía
+`importScripts`) como por `app.js`; ya no se edita el string de versión directo dentro
+de `sw.js`. Login reescrito en `index.html`/`app.js` con 3 pasos dentro de la misma
+`.login-card` (sin vistas nuevas): tarjetas grandes "Admin"/"Vendedores" → lista de
+nombres de esa categoría (o salto directo a contraseña si solo hay un nombre) →
+contraseña, con flechas "‹" para regresar. `handleLogout()` siempre reinicia al paso 1.
+
+Verificado en navegador real contra Supabase en producción: pantalla fresca muestra
+"v13" + las dos tarjetas de categoría; "Admin" (hoy solo Papá) salta directo a
+contraseña; "Vendedores" (4 usuarios activos) muestra la lista completa; las flechas
+"‹" regresan al paso correcto en ambos casos (incluido el caso especial de "volver"
+desde el atajo de 1 usuario, que regresa a categoría en vez de a una lista vacía);
+login real con credenciales de Angie completado con éxito; logout reinició
+correctamente al paso 1; botón "Buscar actualización" mostró "Ya tienes la última
+versión." sin recargar cuando no había cambios, y detectó+recargó correctamente cuando
+se probó con un cambio temporal en `version.js` (revertido después de la prueba, sin
+dejar rastro en el commit). Cero errores en consola durante toda la sesión.
+
+Durante la implementación, el subagente de la tarea de `app.js` encontró y corrigió un
+quinto lugar del archivo (fuera del alcance explícito del plan) que todavía llamaba a
+la función vieja `populateLoginUsuarios()` — el flujo de "Guardar" en gestión de
+usuarios (ticket 12) — que habría lanzado un `ReferenceError` en producción al dar de
+alta o editar un usuario. Se reemplazó por `cargarLoginCategorias()`, verificado
+correcto tanto por el controlador (`grep` directo, cero referencias residuales) como
+por la revisión de la tarea.
+
+- [x] `version.js` nuevo — fuente única de versión, leída por `sw.js` y `app.js`
+- [x] Login en 3 pasos: categoría (`admin`/`vendedor`) → nombre → contraseña
+- [x] Atajo: categoría con 1 solo usuario activo salta directo a contraseña
+- [x] Versión visible en login + botón "🔄 Buscar actualización" (force update + reload)
+- [x] `handleLogout()` reinicia siempre al paso 1

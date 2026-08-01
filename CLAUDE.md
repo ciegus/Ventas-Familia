@@ -37,7 +37,8 @@ Documentos fuente de verdad — **leer antes de tocar código**:
 | `index.html` | Login + shell principal (4 pestañas) + overlays (bottom sheets, paneles fullscreen) |
 | `app.js` | Toda la lógica JS — módulo ES, importa `@supabase/supabase-js`, `html2canvas`, `jsPDF` desde `esm.sh` (sin build step) |
 | `styles.css` | Estilos — paleta teal/navy "Lima's Sales" |
-| `sw.js` | Service worker — cachea el shell estático, cache actual `vf-v7` |
+| `sw.js` | Service worker — cachea el shell estático, versión leída de `version.js` |
+| `version.js` | Fuente única del número de versión, leída por `sw.js` y `app.js` |
 | `manifest.json` | PWA manifest |
 | `icon.svg` | Ícono/logo "LS" |
 
@@ -64,7 +65,8 @@ diferencia real es la capacidad de anular registros ajenos. Contraseña temporal
 - **Nunca se borra un registro físicamente** — ventas y abonos se marcan `anulado` +
   `anulado_por` + `anulado_en`.
 - **Regla de caché:** cada vez que se modifica `app.js` o `styles.css`, subir el número en
-  `sw.js` → `const CACHE = 'vf-vX'`.
+  `version.js` → `self.CACHE_VERSION = 'vf-vX'` (fuente única, leída por `sw.js` vía
+  `importScripts` y por `app.js`).
 - **Folios:** formato `REC-XXXXXXXX`, generados por la función SQL `generate_folio()` —
   nunca generados en el cliente.
 - **Money/fecha:** usar los formateadores ya definidos en `app.js` (`money` con
@@ -93,9 +95,12 @@ pantalla "Movimientos", ver [docs/superpowers/specs/2026-07-30-multi-almacen-des
 para el diseño completo), 14 (Deuda de consigna por vendedor — cuenta interna
 Papá↔vendedor separada del crédito a Clientes, dentro de la pantalla "Movimientos", ver
 [docs/superpowers/specs/2026-07-31-consigna-vendedores-design.md](docs/superpowers/specs/2026-07-31-consigna-vendedores-design.md)
+para el diseño completo), 15 (Login en 2 pasos categoría→nombre→contraseña + versión
+visible con botón de actualización, ver
+[docs/superpowers/specs/2026-08-01-login-2pasos-version-design.md](docs/superpowers/specs/2026-08-01-login-2pasos-version-design.md)
 para el diseño completo).
 
-**Pendiente:** ninguno de los tickets 01-14. Próximos pasos por definir con Luis.
+**Pendiente:** ninguno de los tickets 01-15. Próximos pasos por definir con Luis.
 
 Los usuarios y roles fijos descritos abajo ("Usuarios y roles") dejaron de ser fijos con
 el ticket 12 — ahora son altas/bajas dinámicas desde la app (sección "Mi cuenta"). El

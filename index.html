@@ -20,21 +20,40 @@
       <div class="login-icon"><img src="icon.svg" alt="" /></div>
       <h1>Lima's Sales</h1>
       <p class="brand-sub">Gestión de ventas del negocio</p>
+      <p class="login-version" id="login-version">—</p>
 
-      <form id="login-form" autocomplete="off">
-        <div class="field">
-          <label for="login-nombre">Usuario</label>
-          <select id="login-nombre" required>
-            <option value="" disabled selected>Selecciona tu nombre</option>
-          </select>
+      <!-- Paso 1: categoría -->
+      <div id="login-paso-categoria">
+        <button type="button" class="login-categoria-card" data-rol="admin">Admin</button>
+        <button type="button" class="login-categoria-card" data-rol="vendedor">Vendedores</button>
+      </div>
+
+      <!-- Paso 2: nombre (se salta si la categoría tiene un solo usuario activo) -->
+      <div id="login-paso-nombre" style="display:none;">
+        <div class="login-paso-header">
+          <button type="button" id="login-nombre-volver" class="icon-btn-alt" aria-label="Volver">‹</button>
+          <span id="login-categoria-titulo"></span>
         </div>
-        <div class="field">
-          <label for="login-password">Contraseña</label>
-          <input id="login-password" type="password" required />
+        <div id="login-nombre-list"></div>
+      </div>
+
+      <!-- Paso 3: contraseña -->
+      <div id="login-paso-password" style="display:none;">
+        <div class="login-paso-header">
+          <button type="button" id="login-password-volver" class="icon-btn-alt" aria-label="Volver">‹</button>
+          <span id="login-nombre-titulo"></span>
         </div>
-        <p id="login-error" class="error-msg"></p>
-        <button id="login-submit" type="submit" class="btn btn-primary">Entrar</button>
-      </form>
+        <form id="login-form" autocomplete="off">
+          <div class="field">
+            <label for="login-password">Contraseña</label>
+            <input id="login-password" type="password" required />
+          </div>
+          <p id="login-error" class="error-msg"></p>
+          <button id="login-submit" type="submit" class="btn btn-primary">Entrar</button>
+        </form>
+      </div>
+
+      <button type="button" id="login-buscar-actualizacion" class="btn-link">🔄 Buscar actualización</button>
     </div>
   </section>
 
@@ -535,6 +554,7 @@
 
   <div id="toast"></div>
 
+  <script src="version.js"></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>
