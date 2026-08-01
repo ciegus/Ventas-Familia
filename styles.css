@@ -628,7 +628,7 @@ body {
   display: none;
   align-items: flex-end;
   justify-content: center;
-  z-index: 200;
+  z-index: 350;
 }
 
 .sheet-overlay.show { display: flex; }
