@@ -37,7 +37,7 @@ Documentos fuente de verdad — **leer antes de tocar código**:
 | `index.html` | Login + shell principal (4 pestañas) + overlays (bottom sheets, paneles fullscreen) |
 | `app.js` | Toda la lógica JS — módulo ES, importa `@supabase/supabase-js`, `html2canvas`, `jsPDF` desde `esm.sh` (sin build step) |
 | `styles.css` | Estilos — paleta teal/navy "Lima's Sales" |
-| `sw.js` | Service worker — cachea el shell estático, cache actual `vf-v7` |
+| `sw.js` | Service worker — cachea el shell estático, versión leída de `version.js` |
 | `version.js` | Fuente única del número de versión, leída por `sw.js` y `app.js` |
 | `manifest.json` | PWA manifest |
 | `icon.svg` | Ícono/logo "LS" |
