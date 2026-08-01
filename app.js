@@ -65,29 +65,139 @@ function renderMain(user) {
 
 // ---------- Login ----------
 
-async function populateLoginUsuarios() {
-  const select = document.getElementById('login-nombre');
-  const valorPrevio = select.value;
+let loginRolActual = null;
+let loginNombreActual = null;
+let loginCategoriasCache = { admin: [], vendedor: [] };
 
+async function cargarLoginCategorias() {
   const { data, error } = await supabase
     .from('usuarios')
-    .select('nombre')
+    .select('nombre, rol')
     .eq('activo', true)
     .order('nombre');
 
-  select.innerHTML = '<option value="" disabled selected>Selecciona tu nombre</option>';
+  loginCategoriasCache = { admin: [], vendedor: [] };
+  if (!error && data) {
+    data.forEach((u) => {
+      if (loginCategoriasCache[u.rol]) loginCategoriasCache[u.rol].push(u.nombre);
+    });
+  }
+}
 
-  if (error || !data) return;
+function mostrarLoginPaso(paso) {
+  document.getElementById('login-paso-categoria').style.display = paso === 'categoria' ? 'block' : 'none';
+  document.getElementById('login-paso-nombre').style.display = paso === 'nombre' ? 'block' : 'none';
+  document.getElementById('login-paso-password').style.display = paso === 'password' ? 'block' : 'none';
+}
 
-  data.forEach(({ nombre }) => {
-    const opt = document.createElement('option');
-    opt.value = nombre;
-    opt.textContent = nombre;
-    select.appendChild(opt);
+async function abrirLoginCategoria(rol) {
+  await cargarLoginCategorias();
+  const nombres = loginCategoriasCache[rol] || [];
+  loginRolActual = rol;
+
+  if (nombres.length === 1) {
+    seleccionarLoginNombre(nombres[0]);
+    return;
+  }
+
+  document.getElementById('login-categoria-titulo').textContent =
+    rol === 'admin' ? 'Admin' : 'Vendedores';
+
+  const list = document.getElementById('login-nombre-list');
+  list.innerHTML = '';
+  nombres.forEach((nombre) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'login-nombre-card';
+    btn.textContent = nombre;
+    btn.addEventListener('click', () => seleccionarLoginNombre(nombre));
+    list.appendChild(btn);
   });
 
-  if (data.some((u) => u.nombre === valorPrevio)) {
-    select.value = valorPrevio;
+  mostrarLoginPaso('nombre');
+}
+
+function seleccionarLoginNombre(nombre) {
+  loginNombreActual = nombre;
+  document.getElementById('login-nombre-titulo').textContent = nombre;
+  document.getElementById('login-password').value = '';
+  document.getElementById('login-error').textContent = '';
+  mostrarLoginPaso('password');
+  document.getElementById('login-password').focus();
+}
+
+function volverALoginCategoria() {
+  loginRolActual = null;
+  mostrarLoginPaso('categoria');
+}
+
+function volverALoginNombre() {
+  const nombres = loginCategoriasCache[loginRolActual] || [];
+  if (nombres.length === 1) {
+    volverALoginCategoria();
+    return;
+  }
+  mostrarLoginPaso('nombre');
+}
+
+function resetLoginFlow() {
+  loginRolActual = null;
+  loginNombreActual = null;
+  mostrarLoginPaso('categoria');
+}
+
+function mostrarVersionLogin() {
+  const v = (self.CACHE_VERSION || '').replace(/^vf-/, '');
+  document.getElementById('login-version').textContent = v;
+}
+
+async function buscarActualizacion() {
+  const btn = document.getElementById('login-buscar-actualizacion');
+
+  if (!('serviceWorker' in navigator)) {
+    toast('Este navegador no soporta actualizaciones automáticas.', 'error');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Buscando...';
+
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) {
+      toast('No se pudo verificar. Intenta de nuevo.', 'error');
+      return;
+    }
+
+    const huboActualizacion = await new Promise((resolve) => {
+      let resuelto = false;
+      const terminar = (valor) => {
+        if (resuelto) return;
+        resuelto = true;
+        resolve(valor);
+      };
+
+      reg.addEventListener('updatefound', () => {
+        const nuevoWorker = reg.installing;
+        if (!nuevoWorker) { terminar(false); return; }
+        nuevoWorker.addEventListener('statechange', () => {
+          if (nuevoWorker.state === 'activated') terminar(true);
+        });
+      }, { once: true });
+
+      reg.update().catch(() => terminar(false));
+      setTimeout(() => terminar(false), 3000);
+    });
+
+    if (huboActualizacion) {
+      toast('Actualizando...');
+      window.location.reload();
+    } else {
+      toast('Ya tienes la última versión.');
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 Buscar actualización';
   }
 }
 
@@ -95,7 +205,7 @@ async function handleLogin(event) {
   event.preventDefault();
   if (!assertOnline()) return;
 
-  const nombre = document.getElementById('login-nombre').value;
+  const nombre = loginNombreActual;
   const password = document.getElementById('login-password').value;
   const errorEl = document.getElementById('login-error');
   const submitBtn = document.getElementById('login-submit');
@@ -130,6 +240,7 @@ async function handleLogin(event) {
 
     setSession(user);
     document.getElementById('login-form').reset();
+    resetLoginFlow();
     renderMain(user);
   } finally {
     submitBtn.disabled = false;
@@ -140,7 +251,7 @@ async function handleLogin(event) {
 function handleLogout() {
   clearSession();
   historialCache = [];
-  populateLoginUsuarios();
+  resetLoginFlow();
   showView('view-login');
 }
 
@@ -1919,7 +2030,7 @@ async function saveUsuario() {
 
     closeUsuarioForm();
     loadUsuarios();
-    populateLoginUsuarios();
+    cargarLoginCategorias();
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = 'Guardar';
@@ -2436,6 +2547,12 @@ function initMovimientos() {
 function init() {
   document.getElementById('login-form').addEventListener('submit', handleLogin);
   document.getElementById('btn-logout').addEventListener('click', handleLogout);
+  document.querySelectorAll('.login-categoria-card').forEach((btn) => {
+    btn.addEventListener('click', () => abrirLoginCategoria(btn.dataset.rol));
+  });
+  document.getElementById('login-nombre-volver').addEventListener('click', volverALoginCategoria);
+  document.getElementById('login-password-volver').addEventListener('click', volverALoginNombre);
+  document.getElementById('login-buscar-actualizacion').addEventListener('click', buscarActualizacion);
   initNav();
   initClientes();
   initInventario();
@@ -2446,7 +2563,8 @@ function init() {
   initCuenta();
   initMovimientos();
 
-  populateLoginUsuarios();
+  mostrarVersionLogin();
+  resetLoginFlow();
   const session = getSession();
   if (session) {
     if (!session.almacenId) {
