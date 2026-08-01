@@ -357,6 +357,7 @@ let productosCache = [];
 let categoriaFiltroActual = null;
 let productoEditId = null;
 let productoFotoUrlActual = null;
+let productoFotoBlobComprimido = null;
 
 function escapeAttr(str) {
   return String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -446,6 +447,7 @@ function renderProductosGrid() {
 function openProductoForm(producto = null) {
   productoEditId = producto ? producto.id : null;
   productoFotoUrlActual = producto ? producto.foto_url : null;
+  productoFotoBlobComprimido = null;
 
   document.getElementById('producto-form-title').textContent = producto ? 'Editar producto' : 'Nuevo producto';
   document.getElementById('producto-nombre').value = producto ? producto.nombre : '';
@@ -565,11 +567,34 @@ async function registrarEntradaProducto() {
   }
 }
 
-function handleFotoChange(event) {
+async function comprimirImagen(file, maxDim = 900, calidad = 0.82) {
+  const bitmap = await createImageBitmap(file);
+  const escala = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+  const ancho = Math.round(bitmap.width * escala);
+  const alto = Math.round(bitmap.height * escala);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = ancho;
+  canvas.height = alto;
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, ancho, alto);
+
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), 'image/jpeg', calidad);
+  });
+}
+
+async function handleFotoChange(event) {
   const file = event.target.files && event.target.files[0];
   const preview = document.getElementById('producto-foto-preview');
   if (!file) return;
-  preview.src = URL.createObjectURL(file);
+
+  try {
+    productoFotoBlobComprimido = await comprimirImagen(file);
+  } catch {
+    productoFotoBlobComprimido = file;
+  }
+
+  preview.src = URL.createObjectURL(productoFotoBlobComprimido);
   preview.style.display = 'block';
 }
 
@@ -581,8 +606,6 @@ async function saveProducto() {
   const costo = parseFloat(document.getElementById('producto-costo').value);
   const stock = parseInt(document.getElementById('producto-stock').value, 10);
   const categoria = document.getElementById('producto-categoria').value.trim();
-  const fileInput = document.getElementById('producto-foto');
-  const file = fileInput.files && fileInput.files[0];
   const errorEl = document.getElementById('producto-form-error');
   const saveBtn = document.getElementById('producto-guardar');
 
@@ -604,7 +627,7 @@ async function saveProducto() {
     errorEl.textContent = 'El stock inicial es obligatorio y debe ser un número entero, 0 o mayor.';
     return;
   }
-  if (!file && !productoFotoUrlActual) {
+  if (!productoFotoBlobComprimido && !productoFotoUrlActual) {
     errorEl.textContent = 'La foto es obligatoria.';
     return;
   }
@@ -615,9 +638,11 @@ async function saveProducto() {
   try {
     let fotoUrl = productoFotoUrlActual;
 
-    if (file) {
-      const path = `${crypto.randomUUID()}-${file.name}`;
-      const { error: uploadError } = await supabase.storage.from('productos').upload(path, file);
+    if (productoFotoBlobComprimido) {
+      const path = `${crypto.randomUUID()}.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from('productos')
+        .upload(path, productoFotoBlobComprimido, { contentType: 'image/jpeg' });
       if (uploadError) {
         errorEl.textContent = 'No se pudo subir la foto. Intenta de nuevo.';
         return;
