@@ -38,6 +38,7 @@ Documentos fuente de verdad — **leer antes de tocar código**:
 | `app.js` | Toda la lógica JS — módulo ES, importa `@supabase/supabase-js`, `html2canvas`, `jsPDF` desde `esm.sh` (sin build step) |
 | `styles.css` | Estilos — paleta teal/navy "Lima's Sales" |
 | `sw.js` | Service worker — cachea el shell estático, cache actual `vf-v7` |
+| `version.js` | Fuente única del número de versión, leída por `sw.js` y `app.js` |
 | `manifest.json` | PWA manifest |
 | `icon.svg` | Ícono/logo "LS" |
 
@@ -64,7 +65,8 @@ diferencia real es la capacidad de anular registros ajenos. Contraseña temporal
 - **Nunca se borra un registro físicamente** — ventas y abonos se marcan `anulado` +
   `anulado_por` + `anulado_en`.
 - **Regla de caché:** cada vez que se modifica `app.js` o `styles.css`, subir el número en
-  `sw.js` → `const CACHE = 'vf-vX'`.
+  `version.js` → `self.CACHE_VERSION = 'vf-vX'` (fuente única, leída por `sw.js` vía
+  `importScripts` y por `app.js`).
 - **Folios:** formato `REC-XXXXXXXX`, generados por la función SQL `generate_folio()` —
   nunca generados en el cliente.
 - **Money/fecha:** usar los formateadores ya definidos en `app.js` (`money` con

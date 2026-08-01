@@ -81,6 +81,8 @@ async function cargarLoginCategorias() {
     data.forEach((u) => {
       if (loginCategoriasCache[u.rol]) loginCategoriasCache[u.rol].push(u.nombre);
     });
+  } else if (error) {
+    toast('No se pudo cargar la lista de usuarios.', 'error');
   }
 }
 
