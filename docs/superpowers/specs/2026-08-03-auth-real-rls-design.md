@@ -234,9 +234,57 @@ Supabase, nunca en el repo ni en el cliente) solo para las llamadas a
   contraseña temporal ya le funciona en el sitio real. Angie, Alexis y Alexa confirmaron
   lo mismo (2026-08-04). **Fase B cerrada — los 5 usuarios reales entran por Supabase
   Auth en producción, confirmado por cada uno.**
-- **Fase C — no arrancada.** Habilitar RLS (sección 3) y reescribir las 16 funciones
-  `SECURITY DEFINER` para usar `auth.uid()` (sección 4) — el paso que de verdad cierra el
-  hallazgo crítico del audit. `login_usuario()` sigue existiendo en la base (sin uso desde
-  el frontend después de esta fase B, pero todavía callable — se elimina en Fase C junto
-  con `password_hash`).
+- **Fase C — completada (2026-08-04).** RLS habilitado en las 11 tablas (`SELECT` solo
+  para `authenticated`; `clientes`/`productos` con escritura directa también solo para
+  `authenticated`; el resto solo escribible vía las funciones). Las 14 funciones de
+  escritura reescritas para resolver "quién soy" con `current_usuario_id()` (nueva,
+  basada en `auth.uid()`) en vez de un `p_usuario_id`/`p_vendedor_id`/`p_admin_id` que
+  mandaba el cliente sin verificar. `crear_usuario()` ganó el chequeo de admin que le
+  faltaba (agujero real: cualquiera con la clave anon podía crearse una cuenta admin
+  llamándola directo — verificado que existía antes de este fix). `login_usuario()` se
+  eliminó (dead code desde fase B). Nueva función `listar_login_categorias()` (SQL,
+  `SECURITY DEFINER`, ejecutable por `anon`) porque el paso "categoría → nombre" del
+  login necesita leer `usuarios` **antes** de que exista sesión — se optó por esta
+  función angosta (solo nombre+rol de activos) en vez de reabrir una política de
+  `SELECT` para `anon` en la tabla completa, que habría vuelto a exponer
+  `password_hash`. Políticas del bucket `productos` en `storage.objects` restringidas de
+  `{anon,authenticated}` a solo `authenticated`. `EXECUTE` revocado de `anon`/`PUBLIC` en
+  todas las funciones de escritura.
+
+  **Cuatro bugs reales encontrados y corregidos durante la verificación en vivo** (no
+  solo en revisión de código — se repitieron en distintas funciones, mismo origen):
+  `RETURNS TABLE(id ...)`/`RETURNS TABLE(folio ...)`/`RETURNS TABLE(..., rol ...)`
+  declara esos nombres como variables implícitas dentro del cuerpo plpgsql, y una
+  referencia sin calificar a la columna real de la tabla (`where id = ...`, `select
+  folio, ... from ventas`, `select rol, ... from usuarios`) queda ambigua entre la
+  variable de salida y la columna — Postgres la rechaza con `42702 column reference
+  ... is ambiguous`. Afectaba a `anular_venta`, `anular_abono`, `crear_producto` y
+  `crear_usuario`. Se corrigió calificando esas referencias con el nombre de tabla
+  (`ventas.folio`, `usuarios.id`, etc.), y se auditaron las 8 funciones `RETURNS TABLE`
+  restantes contra este mismo patrón — sin más casos.
+
+  **Verificado en vivo contra producción** (Supabase real, sin ambiente de staging):
+  login (Regina), venta de contado con stock de prueba dado de alta/revertido por SQL
+  directo, anulación de esa venta (con verificación de que el stock volvió exacto),
+  abono de $50 contra un cliente real y su anulación (saldo volvió exacto), cambio de
+  contraseña propia con ida y vuelta completa (confirmado que la nueva contraseña
+  funciona de verdad para iniciar sesión, y que quedó revertida a la original — no se
+  dejó a Regina con una contraseña distinta a la que ya conocía), carga de imágenes de
+  producto (confirmado que `getPublicUrl()` no depende de la política RLS restringida),
+  y las 8 funciones admin-only (`registrar_traspaso`, `anular_movimiento`,
+  `registrar_pago_consigna`, `anular_pago_consigna`, `cambiar_estatus_usuario`,
+  `actualizar_datos_usuario`, `admin_resetear_password`, `crear_usuario`) todas rechazan
+  correctamente a un vendedor con `PERMISO_DENEGADO`. Un cliente `anon` verdaderamente
+  aislado (sin sesión, verificado explícitamente para descartar que heredara la sesión
+  de Regina vía `localStorage` compartido) confirmó `usuarios`/`clientes` devuelven 0
+  filas y `registrar_venta` se rechaza a nivel de permiso de Postgres antes de ejecutar
+  nada — el hallazgo crítico original del audit está cerrado.
+
+  **No verificado en vivo** (no se probó el camino de éxito, solo el de rechazo, por no
+  contar con una contraseña de admin real): `crear_producto`, `registrar_entrada`,
+  `registrar_traspaso`, `cambiar_estatus_usuario`, `actualizar_datos_usuario`,
+  `admin_resetear_password` cuando SÍ los llama un admin real. El código se revisó
+  línea por línea contra el original y se auditó exhaustivamente contra la clase de bug
+  encontrada, pero recomiendo que Luis pruebe al menos una entrada de producto o un
+  traspaso desde la app real como confirmación final.
 - **Fase D — no arrancada.** Edge Function `admin-usuarios` (sección 6).

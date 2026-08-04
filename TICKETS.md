@@ -552,3 +552,51 @@ real durante esta sesión por no contar con una contraseña válida de ningún u
 - [x] La lista de vendedores para la tabla se lee siempre de `usuarios`, sin filtrar por
       rol ni por `activo`
 - [x] Versión subida a `vf-v14` (convención de caché del proyecto)
+
+---
+
+## 17 — Auth real de Supabase + RLS en las 11 tablas (fix del hallazgo crítico de PROJECT_AUDIT.md) 🟡 en progreso
+
+**Blocked by:** Ninguno
+
+**Qué construye:** cierra el hallazgo crítico de `PROJECT_AUDIT.md` sección 8 — con RLS
+deshabilitado en las 11 tablas y la clave `anon` embebida en `app.js`, cualquiera podía
+leer/escribir cualquier tabla directo por REST, evitando las 17 funciones SQL que
+validaban permisos. Diseño completo en
+[docs/superpowers/specs/2026-08-03-auth-real-rls-design.md](docs/superpowers/specs/2026-08-03-auth-real-rls-design.md),
+ejecutado por fases (sin ambiente de staging — deuda técnica #6 del audit — cada fase se
+verificó en producción antes de avanzar a la siguiente).
+
+**Estado — Fases A, B y C completadas (2026-08-04); Fase D pendiente:**
+
+- **Fase A:** los 5 usuarios reales tienen cuenta en Supabase Auth (correo interno
+  `@ventasfamilia.internal`, nunca visible en la UI) enlazada a `usuarios.auth_id`.
+- **Fase B:** login del frontend migrado a `supabase.auth.signInWithPassword()`. Los 5
+  usuarios confirmaron su contraseña temporal en producción.
+- **Fase C:** RLS habilitado en las 11 tablas (`SELECT` solo `authenticated`; escritura
+  directa solo en `clientes`/`productos`, el resto solo vía funciones). Las 14 funciones
+  de escritura reescritas para resolver "quién soy" desde `auth.uid()` en vez de un
+  parámetro que mandaba el cliente sin verificar. `crear_usuario()` ganó el chequeo de
+  admin que le faltaba (agujero real, no solo teórico). Se encontraron y corrigieron 4
+  bugs reales durante la verificación en vivo (columnas ambiguas contra los nombres de
+  columna de `RETURNS TABLE` — detalle en el design doc). Verificado en producción: login,
+  venta + anulación, abono + anulación, cambio de contraseña propia (ida y vuelta
+  completa), carga de imágenes, y las 8 funciones admin-only rechazando correctamente a
+  un vendedor. Un cliente `anon` aislado confirmó 0 acceso a datos y funciones de
+  escritura. **No verificado:** el camino de éxito de las funciones admin-only (crear
+  producto, entrada, traspaso, gestión de usuarios) contra un admin real — pendiente que
+  Luis lo confirme.
+- **"Nuevo usuario" y "resetear contraseña de otro" quedaron bloqueados en la UI** con un
+  mensaje claro (antes tenían apariencia de funcionar sin ningún efecto real, porque la
+  contraseña real ya vive en Supabase Auth, no en la columna vieja `usuarios.password_hash`)
+  — se reactivan en la Fase D.
+
+**Pendiente — Fase D:** Edge Function `admin-usuarios` (usa `service_role`, la única forma
+de crear/resetear cuentas de Supabase Auth ajenas) para reactivar alta de usuarios y
+reseteo de contraseña por admin.
+
+- [x] Fase A: `usuarios.auth_id` + 5 cuentas reales en Supabase Auth
+- [x] Fase B: login del frontend vía `supabase.auth.signInWithPassword()`
+- [x] Fase C: RLS en las 11 tablas + 14 funciones reescritas con `auth.uid()`
+- [ ] Fase D: Edge Function `admin-usuarios` (crear/resetear contraseña de otro usuario)
+- [x] Versión subida a `vf-v16`

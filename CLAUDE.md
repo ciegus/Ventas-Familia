@@ -114,13 +114,27 @@ usuarios reales tienen cuenta en Supabase Auth (correo interno
 función vieja — verificado en vivo contra producción (`ventas-familia.vercel.app`, no
 solo local): login/dashboard/Reportes/logout sin errores de consola, y los 5 usuarios
 reales (Luis, Angie, Alexa, Alexis, Regina) confirmaron que su contraseña temporal les
-funciona. **Pendientes: Fase C** (habilitar
-RLS + reescribir las 16 funciones `SECURITY DEFINER` para usar `auth.uid()` — el paso que
-de verdad cierra el hueco de seguridad) **y Fase D** (Edge Function `admin-usuarios` con
-`service_role`, para que el admin pueda seguir dando de alta usuarios y reseteando
-contraseñas ajenas desde la app — Supabase Auth no permite eso desde una función SQL como
-las actuales `crear_usuario`/`admin_resetear_password`, que hoy siguen existiendo pero sin
-uso desde el frontend).
+funciona. **Fase C completada (2026-08-04): RLS habilitado en las 11 tablas, las 14 funciones de
+escritura ya resuelven "quién soy" desde `auth.uid()` en vez de un parámetro que mandaba
+el cliente sin verificar.** El hallazgo crítico del audit (RLS apagado + clave anon
+pública = lectura/escritura completa sin pasar por las funciones) está cerrado —
+verificado en vivo con un cliente `anon` aislado (0 filas, funciones de escritura
+rechazadas a nivel de permiso). Durante la verificación se encontraron y corrigieron 4
+bugs reales (mismo origen: columnas `id`/`folio`/`rol` ambiguas contra las variables de
+salida de `RETURNS TABLE` en `anular_venta`, `anular_abono`, `crear_producto`,
+`crear_usuario`) — detalle completo en el design doc. **Pendiente que Luis confirme al
+menos una acción admin real (entrada de producto o traspaso) — solo se pudo probar el
+camino de rechazo (`PERMISO_DENEGADO`) para las funciones admin-only, no el de éxito, por
+no contar con una contraseña de admin real durante la sesión.**
+
+**Pendiente: Fase D** (Edge Function `admin-usuarios` con `service_role`, para que el
+admin pueda seguir dando de alta usuarios y reseteando contraseñas ajenas desde la app —
+Supabase Auth no permite eso desde una función SQL). **Mientras tanto, "Nuevo usuario" y
+"resetear contraseña de otro" quedaron bloqueados en la UI con un mensaje claro** (en vez
+de dejarlos parecer que funcionan sin tener ningún efecto real) — editar nombre/rol/
+activo de un usuario existente sí funciona. El cambio de contraseña propia ("Mi cuenta")
+ya no depende de esto — se migró a `supabase.auth.updateUser()` y se probó de punta a
+punta.
 
 **Pendiente:** ver ticket 17 arriba. El resto de los tickets 01-16 están cerrados.
 

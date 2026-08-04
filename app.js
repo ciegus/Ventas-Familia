@@ -70,11 +70,9 @@ let loginNombreActual = null;
 let loginCategoriasCache = { admin: [], vendedor: [] };
 
 async function cargarLoginCategorias() {
-  const { data, error } = await supabase
-    .from('usuarios')
-    .select('nombre, rol')
-    .eq('activo', true)
-    .order('nombre');
+  // RPC angosta (no select directo a `usuarios`) — RLS restringe esa tabla a
+  // `authenticated` y en este punto todavía no hay sesión (ticket 17, fase C).
+  const { data, error } = await supabase.rpc('listar_login_categorias');
 
   loginCategoriasCache = { admin: [], vendedor: [] };
   if (!error && data) {
@@ -675,11 +673,9 @@ async function registrarEntradaProducto() {
   btn.textContent = 'Registrando...';
 
   try {
-    const session = getSession();
     const { error } = await supabase.rpc('registrar_entrada', {
       p_producto_id: productoEditId,
       p_cantidad: cantidad,
-      p_usuario_id: session.id,
     });
 
     if (error) {
@@ -795,7 +791,6 @@ async function saveProducto() {
         return;
       }
     } else {
-      const session = getSession();
       const { error } = await supabase.rpc('crear_producto', {
         p_nombre: nombre,
         p_precio: precio,
@@ -803,7 +798,6 @@ async function saveProducto() {
         p_foto_url: fotoUrl,
         p_categoria: categoria || null,
         p_stock_inicial: stock,
-        p_usuario_id: session.id,
       });
 
       if (error) {
@@ -1147,7 +1141,6 @@ async function confirmarVenta() {
     const { data, error } = await supabase.rpc('registrar_venta', {
       p_tipo: ventaTipo,
       p_cliente_id: clienteId,
-      p_vendedor_id: session.id,
       p_enganche: enganche,
       p_items: items,
     });
@@ -1332,7 +1325,6 @@ async function confirmarAbono() {
   try {
     const { data, error } = await supabase.rpc('registrar_abono', {
       p_cliente_id: clienteId,
-      p_vendedor_id: session.id,
       p_monto: monto,
     });
 
@@ -1549,11 +1541,10 @@ async function confirmarAnular(item, btn) {
   btn.textContent = 'Anulando...';
 
   try {
-    const session = getSession();
     const rpcName = item.tipo === 'venta' ? 'anular_venta' : 'anular_abono';
     const params = item.tipo === 'venta'
-      ? { p_venta_id: item.id, p_usuario_id: session.id }
-      : { p_abono_id: item.id, p_usuario_id: session.id };
+      ? { p_venta_id: item.id }
+      : { p_abono_id: item.id };
 
     const { error } = await supabase.rpc(rpcName, params);
 
@@ -1831,19 +1822,24 @@ async function guardarPasswordPropia() {
 
   try {
     const session = getSession();
-    const { error } = await supabase.rpc('cambiar_contrasena', {
-      p_usuario_id: session.id,
-      p_password_actual: actual,
-      p_password_nueva: nueva,
+    // Ticket 17: la contraseña real vive en Supabase Auth desde la Fase B — se
+    // reautentica con la actual para confirmarla (mismo requisito de siempre) y
+    // luego se cambia con auth.updateUser(). Ya no se toca `usuarios.password_hash`
+    // (columna en desuso, pendiente de retirar en limpieza futura).
+    const { error: reauthError } = await supabase.auth.signInWithPassword({
+      email: correoSintetico(session.nombre),
+      password: actual,
     });
 
+    if (reauthError) {
+      errorEl.textContent = 'La contraseña actual no es correcta.';
+      return;
+    }
+
+    const { error } = await supabase.auth.updateUser({ password: nueva });
+
     if (error) {
-      const msg = error.message || '';
-      if (msg.includes('PASSWORD_ACTUAL_INCORRECTA')) {
-        errorEl.textContent = 'La contraseña actual no es correcta.';
-      } else {
-        errorEl.textContent = 'No se pudo cambiar la contraseña. Intenta de nuevo.';
-      }
+      errorEl.textContent = 'No se pudo cambiar la contraseña. Intenta de nuevo.';
       return;
     }
 
@@ -1974,90 +1970,72 @@ async function saveUsuario() {
     return;
   }
 
+  // Ticket 17 (Fase C, pendiente Fase D): dar de alta un usuario nuevo o resetear la
+  // contraseña de otro requiere crear/editar su cuenta de Supabase Auth, y eso exige la
+  // clave service_role — solo se puede hacer desde una Edge Function (Fase D, no
+  // desplegada todavía). Se bloquea aquí con un mensaje claro en vez de dejar que
+  // parezca que funcionó sin tener ningún efecto real (ver docs/superpowers/specs/
+  // 2026-08-03-auth-real-rls-design.md sección 6).
+  if (!usuarioEditId) {
+    errorEl.textContent =
+      'Alta de usuarios nuevos no disponible todavía (pendiente ticket 17, fase D). ' +
+      'Pídele a Claude que la complete.';
+    return;
+  }
+  if (password) {
+    errorEl.textContent =
+      'Resetear la contraseña de otro usuario no está disponible todavía (pendiente ' +
+      'ticket 17, fase D) — pídele que la cambie él mismo desde "Mi cuenta", o pídele a ' +
+      'Claude que complete esa fase.';
+    return;
+  }
+
   saveBtn.disabled = true;
   saveBtn.textContent = 'Guardando...';
 
   try {
-    const session = getSession();
+    const { error: updateError } = await supabase.rpc('actualizar_datos_usuario', {
+      p_usuario_id: usuarioEditId,
+      p_nombre: nombre,
+      p_rol: rol,
+    });
 
-    if (!usuarioEditId) {
-      const { error } = await supabase.rpc('crear_usuario', {
-        p_nombre: nombre,
-        p_password: password,
-        p_rol: rol,
-      });
-
-      if (error) {
-        if (error.code === '23505') {
+    if (updateError) {
+      if (updateError.code === '23505') {
+        errorEl.textContent = 'Ya existe un usuario con ese nombre.';
+      } else {
+        const msg = updateError.message || '';
+        if (msg.includes('ULTIMO_ADMIN')) {
           errorEl.textContent =
-            'Ya existe un usuario con ese nombre. Si es una persona distinta, diferéncialo ' +
-            'con un apodo o inicial.';
+            'No puedes quitarle el rol de admin al único admin activo — activa a otro admin primero.';
+        } else if (msg.includes('PERMISO_DENEGADO')) {
+          errorEl.textContent = 'No tienes permiso para hacer esto.';
         } else {
           errorEl.textContent = 'No se pudo guardar. Intenta de nuevo.';
         }
-        return;
       }
-
-      toast('Usuario agregado.');
-    } else {
-      const { error: updateError } = await supabase.rpc('actualizar_datos_usuario', {
-        p_admin_id: session.id,
-        p_usuario_id: usuarioEditId,
-        p_nombre: nombre,
-        p_rol: rol,
-      });
-
-      if (updateError) {
-        if (updateError.code === '23505') {
-          errorEl.textContent = 'Ya existe un usuario con ese nombre.';
-        } else {
-          const msg = updateError.message || '';
-          if (msg.includes('ULTIMO_ADMIN')) {
-            errorEl.textContent =
-              'No puedes quitarle el rol de admin al único admin activo — activa a otro admin primero.';
-          } else if (msg.includes('PERMISO_DENEGADO')) {
-            errorEl.textContent = 'No tienes permiso para hacer esto.';
-          } else {
-            errorEl.textContent = 'No se pudo guardar. Intenta de nuevo.';
-          }
-        }
-        return;
-      }
-
-      if (password) {
-        const { error: passError } = await supabase.rpc('admin_resetear_password', {
-          p_admin_id: session.id,
-          p_usuario_id: usuarioEditId,
-          p_password_nueva: password,
-        });
-        if (passError) {
-          errorEl.textContent = 'El usuario se guardó, pero no se pudo cambiar la contraseña.';
-          return;
-        }
-      }
-
-      const activoBtn = document.querySelector('#usuario-activo-toggle .toggle-btn.active');
-      const activoNuevo = activoBtn.dataset.activo === 'true';
-      const { error: estatusError } = await supabase.rpc('cambiar_estatus_usuario', {
-        p_admin_id: session.id,
-        p_usuario_id: usuarioEditId,
-        p_activo: activoNuevo,
-      });
-
-      if (estatusError) {
-        const msg = estatusError.message || '';
-        if (msg.includes('ULTIMO_ADMIN')) {
-          errorEl.textContent =
-            'No puedes desactivar al único admin activo — activa a otro admin primero.';
-        } else {
-          errorEl.textContent = 'No se pudo actualizar el estatus.';
-        }
-        return;
-      }
-
-      toast('Usuario actualizado.');
+      return;
     }
 
+    const activoBtn = document.querySelector('#usuario-activo-toggle .toggle-btn.active');
+    const activoNuevo = activoBtn.dataset.activo === 'true';
+    const { error: estatusError } = await supabase.rpc('cambiar_estatus_usuario', {
+      p_usuario_id: usuarioEditId,
+      p_activo: activoNuevo,
+    });
+
+    if (estatusError) {
+      const msg = estatusError.message || '';
+      if (msg.includes('ULTIMO_ADMIN')) {
+        errorEl.textContent =
+          'No puedes desactivar al único admin activo — activa a otro admin primero.';
+      } else {
+        errorEl.textContent = 'No se pudo actualizar el estatus.';
+      }
+      return;
+    }
+
+    toast('Usuario actualizado.');
     closeUsuarioForm();
     loadUsuarios();
     cargarLoginCategorias();
@@ -2238,10 +2216,8 @@ async function confirmarAnularMovimiento(movimientoId, btn) {
   btn.textContent = 'Anulando...';
 
   try {
-    const session = getSession();
     const { error } = await supabase.rpc('anular_movimiento', {
       p_movimiento_id: movimientoId,
-      p_usuario_id: session.id,
     });
 
     if (error) {
@@ -2278,10 +2254,8 @@ async function confirmarAnularPagoConsigna(pagoId, btn) {
   btn.textContent = 'Anulando...';
 
   try {
-    const session = getSession();
     const { error } = await supabase.rpc('anular_pago_consigna', {
       p_pago_id: pagoId,
-      p_usuario_id: session.id,
     });
 
     if (error) {
@@ -2411,7 +2385,6 @@ async function guardarMovimiento() {
       const { data, error } = await supabase.rpc('registrar_pago_consigna', {
         p_vendedor_id: vendedorId,
         p_monto: monto,
-        p_usuario_id: session.id,
       });
 
       if (error) {
@@ -2461,13 +2434,10 @@ async function guardarMovimiento() {
   btn.textContent = 'Guardando...';
 
   try {
-    const session = getSession();
-
     if (tipo === 'entrada') {
       const { error } = await supabase.rpc('registrar_entrada', {
         p_producto_id: productoId,
         p_cantidad: cantidad,
-        p_usuario_id: session.id,
       });
 
       if (error) {
@@ -2493,7 +2463,6 @@ async function guardarMovimiento() {
         p_almacen_origen_id: origenId,
         p_almacen_destino_id: destinoId,
         p_cantidad: cantidad,
-        p_usuario_id: session.id,
       });
 
       if (error) {
