@@ -521,3 +521,34 @@ por la revisión de la tarea.
 - [x] Atajo: categoría con 1 solo usuario activo salta directo a contraseña
 - [x] Versión visible en login + botón "🔄 Buscar actualización" (force update + reload)
 - [x] `handleLogout()` reinicia siempre al paso 1
+
+---
+
+## 16 — Reportes: lista de vendedores dinámica (fix de PROJECT_AUDIT.md) ✅
+
+**Blocked by:** Ninguno
+
+**Qué construye:** corrige un hallazgo de `PROJECT_AUDIT.md` (2026-08-03, sección 10,
+hallazgo #2): la tabla "Por vendedor" de Reportes usaba una constante
+`VENDEDORES_FIJOS = ['Papá', 'Angie', 'Alexa', 'Alexis']` hardcodeada en `app.js`, que ya
+no coincidía con los usuarios reales de producción (el admin se dio de alta como
+"Luis Lima", no "Papá", y se agregó una quinta vendedora, "Regina") — ambos quedaban
+invisibles en esa tabla desde el ticket 12 (usuarios dinámicos) sin ningún error visible.
+
+**Estado:** completado — `loadReportes()` ahora trae `select('nombre') from usuarios
+order by nombre` (sin filtrar por rol, para incluir al admin, que sí puede vender desde
+el ticket 12; sin filtrar por `activo`, para no perder el historial de alguien ya dado de
+baja en reportes de meses anteriores a su baja) y se la pasa a
+`renderReportesVendedores()` en vez de la constante, que se eliminó. Verificado con SQL
+directo contra Supabase en producción: `select nombre from usuarios order by nombre`
+devuelve exactamente los 5 usuarios reales (`Alexa, Alexis, Angie, Luis Lima, Regina`),
+mismos que la query que ahora usa el frontend. **Pendiente que Luis confirme visualmente
+en el navegador** (pestaña Reportes → tabla "Por vendedor") — no se pudo iniciar sesión
+real durante esta sesión por no contar con una contraseña válida de ningún usuario.
+
+- [x] Eliminada la constante `VENDEDORES_FIJOS`
+- [x] `renderReportesVendedores()` recibe la lista de nombres como parámetro en vez de
+      leer una constante del módulo
+- [x] La lista de vendedores para la tabla se lee siempre de `usuarios`, sin filtrar por
+      rol ni por `activo`
+- [x] Versión subida a `vf-v14` (convención de caché del proyecto)

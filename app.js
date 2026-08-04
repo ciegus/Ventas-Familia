@@ -203,6 +203,13 @@ async function buscarActualizacion() {
   }
 }
 
+// Ticket 17 (docs/superpowers/specs/2026-08-03-auth-real-rls-design.md): el nombre
+// elegido en el paso 2 del login se traduce a un correo interno, nunca visible ni
+// pedido al usuario — es solo el identificador que exige Supabase Auth.
+function correoSintetico(nombre) {
+  return `${nombre.trim().toLowerCase().replace(/\s+/g, '-')}@ventasfamilia.internal`;
+}
+
 async function handleLogin(event) {
   event.preventDefault();
   if (!assertOnline()) return;
@@ -217,28 +224,42 @@ async function handleLogin(event) {
   submitBtn.textContent = 'Entrando...';
 
   try {
-    const { data, error } = await supabase.rpc('login_usuario', {
-      p_nombre: nombre,
-      p_password: password,
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: correoSintetico(nombre),
+      password,
     });
 
-    if (error) {
-      errorEl.textContent = 'No se pudo iniciar sesión. Intenta de nuevo.';
-      return;
-    }
-
-    if (!data || data.length === 0) {
+    if (authError) {
       errorEl.textContent = 'Usuario o contraseña incorrectos.';
       return;
     }
 
-    const user = data[0];
+    // El perfil de negocio (id usado en ventas/abonos/etc., rol, activo) sigue
+    // viviendo en `usuarios` — Fase C es la que mueve las funciones SQL a auth.uid().
+    const { data: perfil, error: perfilError } = await supabase
+      .from('usuarios')
+      .select('id, nombre, rol, activo')
+      .eq('nombre', nombre)
+      .single();
+
+    if (perfilError || !perfil || !perfil.activo) {
+      await supabase.auth.signOut();
+      errorEl.textContent = 'Usuario o contraseña incorrectos.';
+      return;
+    }
+
     const { data: almacenData } = await supabase
       .from('almacenes')
       .select('id')
-      .eq('usuario_id', user.id)
+      .eq('usuario_id', perfil.id)
       .single();
-    user.almacenId = almacenData ? almacenData.id : null;
+
+    const user = {
+      id: perfil.id,
+      nombre: perfil.nombre,
+      rol: perfil.rol,
+      almacenId: almacenData ? almacenData.id : null,
+    };
 
     setSession(user);
     document.getElementById('login-form').reset();
@@ -250,7 +271,8 @@ async function handleLogin(event) {
   }
 }
 
-function handleLogout() {
+async function handleLogout() {
+  await supabase.auth.signOut();
   clearSession();
   historialCache = [];
   resetLoginFlow();
@@ -1565,7 +1587,6 @@ function initHistorial() {
 
 // ---------- Reportes ----------
 
-const VENDEDORES_FIJOS = ['Papá', 'Angie', 'Alexa', 'Alexis'];
 const mesFmt = new Intl.DateTimeFormat('es-MX', { month: 'long', year: 'numeric' });
 const fechaCortaFmt = new Intl.DateTimeFormat('es-MX', { dateStyle: 'short' });
 
@@ -1603,6 +1624,7 @@ async function loadReportes() {
     { data: pagosPeriodo, error: pagosError },
     { data: itemsPeriodo, error: itemsError },
     { data: vendedoresConsigna, error: consignaError },
+    { data: todosVendedores, error: vendedoresError },
   ] = await Promise.all([
     supabase.from('ventas')
       .select('id, total, vendedor:usuarios!ventas_vendedor_id_fkey(nombre)')
@@ -1629,9 +1651,15 @@ async function loadReportes() {
       .select('id, nombre, deuda_consigna')
       .eq('rol', 'vendedor').gt('deuda_consigna', 0)
       .order('deuda_consigna', { ascending: false }),
+    // Nunca hardcodear nombres aquí — se lee siempre de usuarios. Incluye admin (un
+    // admin puede vender, ticket 12) e inactivos (para no perder su historial en
+    // reportes de meses anteriores a su baja).
+    supabase.from('usuarios')
+      .select('nombre')
+      .order('nombre'),
   ]);
 
-  if (ventasError || abonosError || clientesError || pagosError || itemsError || consignaError) {
+  if (ventasError || abonosError || clientesError || pagosError || itemsError || consignaError || vendedoresError) {
     toast('No se pudo cargar Reportes.', 'error');
     return;
   }
@@ -1639,7 +1667,7 @@ async function loadReportes() {
   renderReportesTotales(ventasPeriodo || [], pagosPeriodo || []);
   renderReportesSaldos(clientesSaldo || []);
   renderReportesConsigna(vendedoresConsigna || []);
-  renderReportesVendedores(ventasPeriodo || [], abonosPeriodo || [], pagosPeriodo || []);
+  renderReportesVendedores((todosVendedores || []).map((v) => v.nombre), ventasPeriodo || [], abonosPeriodo || [], pagosPeriodo || []);
   renderReportesDetalle(itemsPeriodo || []);
 }
 
@@ -1693,11 +1721,11 @@ function renderReportesConsigna(vendedores) {
   });
 }
 
-function renderReportesVendedores(ventas, abonos, pagos) {
+function renderReportesVendedores(nombresVendedores, ventas, abonos, pagos) {
   const tbody = document.getElementById('rep-vendedores-tbody');
   tbody.innerHTML = '';
 
-  VENDEDORES_FIJOS.forEach((nombre) => {
+  nombresVendedores.forEach((nombre) => {
     const vendido = ventas
       .filter((v) => v.vendedor && v.vendedor.nombre === nombre)
       .reduce((sum, v) => sum + Number(v.total), 0);

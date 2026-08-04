@@ -98,9 +98,30 @@ Papá↔vendedor separada del crédito a Clientes, dentro de la pantalla "Movimi
 para el diseño completo), 15 (Login en 2 pasos categoría→nombre→contraseña + versión
 visible con botón de actualización, ver
 [docs/superpowers/specs/2026-08-01-login-2pasos-version-design.md](docs/superpowers/specs/2026-08-01-login-2pasos-version-design.md)
-para el diseño completo).
+para el diseño completo), 16 (Reportes: lista de vendedores dinámica en vez de la
+constante hardcodeada `VENDEDORES_FIJOS`, que ya no coincidía con los usuarios reales —
+hallazgo de `PROJECT_AUDIT.md`).
 
-**Pendiente:** ninguno de los tickets 01-15. Próximos pasos por definir con Luis.
+**En progreso:** ticket 17 — migrar el login de la función propia `login_usuario()` a
+Supabase Auth real (JWT por usuario) y habilitar RLS en las 11 tablas, para cerrar el
+hallazgo crítico de `PROJECT_AUDIT.md` sección 8. Diseño completo en
+[docs/superpowers/specs/2026-08-03-auth-real-rls-design.md](docs/superpowers/specs/2026-08-03-auth-real-rls-design.md),
+ejecutado por fases (cada una verificable antes de la siguiente, sin ambiente de staging
+— deuda técnica #6 del audit). **Fase A y Fase B ya completadas** (2026-08-04): los 5
+usuarios reales tienen cuenta en Supabase Auth (correo interno
+`@ventasfamilia.internal`, nunca visible en la UI) enlazada a su fila de `usuarios` vía
+`auth_id`; el login del frontend ya usa `supabase.auth.signInWithPassword()` en vez de la
+función vieja — verificado en vivo en el navegador (login real, dashboard, Reportes,
+logout, cero errores de consola), pero solo se probó con una de las 5 cuentas (Regina) —
+falta que Angie, Alexa, Alexis y Luis prueben la suya. **Pendientes: Fase C** (habilitar
+RLS + reescribir las 16 funciones `SECURITY DEFINER` para usar `auth.uid()` — el paso que
+de verdad cierra el hueco de seguridad) **y Fase D** (Edge Function `admin-usuarios` con
+`service_role`, para que el admin pueda seguir dando de alta usuarios y reseteando
+contraseñas ajenas desde la app — Supabase Auth no permite eso desde una función SQL como
+las actuales `crear_usuario`/`admin_resetear_password`, que hoy siguen existiendo pero sin
+uso desde el frontend).
+
+**Pendiente:** ver ticket 17 arriba. El resto de los tickets 01-16 están cerrados.
 
 Los usuarios y roles fijos descritos abajo ("Usuarios y roles") dejaron de ser fijos con
 el ticket 12 — ahora son altas/bajas dinámicas desde la app (sección "Mi cuenta"). El
