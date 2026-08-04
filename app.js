@@ -499,7 +499,7 @@ function escapeAttr(str) {
 async function loadProductos() {
   const { data, error } = await supabase
     .from('productos')
-    .select('id, nombre, precio, costo, foto_url, categoria, stock_almacen(cantidad)')
+    .select('id, nombre, precio, costo, foto_url, categoria, stock_almacen(cantidad, almacen:almacenes(usuario_id, usuarios(nombre)))')
     .order('nombre');
 
   if (error) {
@@ -510,6 +510,10 @@ async function loadProductos() {
   productosCache = (data || []).map((p) => ({
     ...p,
     stock: (p.stock_almacen || []).reduce((sum, row) => sum + row.cantidad, 0),
+    stockPorAlmacen: (p.stock_almacen || [])
+      .filter((row) => row.cantidad > 0)
+      .map((row) => ({ nombre: nombreAlmacen(row.almacen), cantidad: row.cantidad }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre)),
   }));
   renderFiltrosCategoria();
   renderProductosGrid();
@@ -551,6 +555,10 @@ function renderProductosGrid() {
   empty.style.display = productosCache.length === 0 ? 'block' : 'none';
 
   productos.forEach((p) => {
+    const desglose = p.stockPorAlmacen
+      .map((s) => `${escapeHtml(s.nombre)}: ${s.cantidad}`)
+      .join(' · ');
+
     const card = document.createElement('div');
     card.className = 'product-card';
     card.innerHTML = `
@@ -559,6 +567,7 @@ function renderProductosGrid() {
         <div class="li-title">${escapeHtml(p.nombre)}</div>
         ${p.categoria ? `<div class="li-sub">${escapeHtml(p.categoria)}</div>` : ''}
         <div class="product-stock">Stock: ${Number(p.stock)}</div>
+        ${desglose ? `<div class="product-stock-desglose">${desglose}</div>` : ''}
         <div class="product-precio">${money.format(Number(p.precio))}</div>
         <div class="product-costo-row">
           <span class="product-costo oculto">Costo: ••••</span>

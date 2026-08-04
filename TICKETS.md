@@ -677,3 +677,33 @@ buscador generan el folio/recibo correcto con el cliente correcto; sin errores d
 - [x] Cliente opcional en venta se mantiene igual (sin seleccionar = sin cliente)
 - [x] Abono conserva el filtro de saldo pendiente > 0 y el saldo visible junto al nombre
 - [x] Versión subida a `vf-v19`
+
+---
+
+## 20 — Inventario: desglose de stock por almacén en la cuadrícula principal ✅
+
+**Blocked by:** Ninguno
+
+**Qué construye:** Luis reportó que la pestaña Inventario solo mostraba el stock total de
+cada producto ("Stock: 46"), sin decir en qué almacén está — el desglose por almacén ya
+existía (ticket 13), pero solo se veía al tocar un producto para editarlo, un paso extra
+por cada consulta.
+
+**Estado:** completado — `loadProductos()` ahora trae también el almacén de cada fila de
+`stock_almacen` (join a `almacenes`/`usuarios`, mismo patrón que `loadStockPorAlmacen()`)
+y arma un desglose por producto (solo almacenes con cantidad > 0, ordenado por nombre).
+Cada tarjeta de la cuadrícula muestra una segunda línea debajo del stock total, ej.
+"Central: 40 · Angie: 5" — si un producto no tiene stock en ningún lado, no se muestra
+esa línea (ya lo dice "Stock: 0" arriba). No cambia nada del detalle al tocar el
+producto, que sigue funcionando igual.
+
+Verificado en navegador contra Supabase en producción (local, antes de subir): productos
+con stock en un solo almacén muestran "Central: N"; un producto con stock repartido entre
+Central y un vendedor muestra ambos ("Central: 1 · Luis Lima: 1"); un producto sin stock
+no muestra la línea de desglose; tocar la tarjeta sigue abriendo el detalle de edición sin
+cambios; sin errores de consola.
+
+- [x] `loadProductos()` trae el almacén de cada renglón de stock
+- [x] Desglose por almacén visible en cada tarjeta de la cuadrícula, sin tocarla
+- [x] Se omite la línea si el producto no tiene stock en ningún almacén
+- [x] Versión subida a `vf-v20`

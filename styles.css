@@ -668,6 +668,13 @@ body {
   margin-top: 4px;
 }
 
+.product-stock-desglose {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+  opacity: 0.8;
+}
+
 .product-precio {
   font-size: 14px;
   font-weight: 700;
