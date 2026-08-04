@@ -753,7 +753,7 @@ body {
 }
 
 .historial-item {
-  cursor: default;
+  cursor: pointer;
   align-items: flex-start;
 }
 

@@ -925,6 +925,7 @@ function setVentaTipo(tipo) {
 }
 
 async function openVentaPanel() {
+  document.getElementById('venta-panel-titulo').textContent = 'Nueva venta';
   ventaCarrito = new Map();
   setVentaTipo('contado');
   document.getElementById('venta-enganche').value = '';
@@ -1245,6 +1246,7 @@ let abonoClientesCache = [];
 let abonoReciboFolioActual = null;
 
 async function openAbonoPanel() {
+  document.getElementById('abono-panel-titulo').textContent = 'Nuevo abono';
   document.getElementById('abono-error').textContent = '';
   document.getElementById('abono-monto').value = '';
   document.getElementById('abono-saldo-actual').style.display = 'none';
@@ -1510,9 +1512,13 @@ function renderHistorial() {
 
     if (puedeAnular) {
       const btnAnular = card.querySelector('.btn-anular');
-      btnAnular.addEventListener('click', () => confirmarAnular(item, btnAnular));
+      btnAnular.addEventListener('click', (e) => {
+        e.stopPropagation();
+        confirmarAnular(item, btnAnular);
+      });
     }
 
+    card.addEventListener('click', () => verReciboHistorial(item));
     list.appendChild(card);
   });
 }
@@ -1526,6 +1532,74 @@ async function openHistorialPanel() {
 
 function closeHistorialPanel() {
   document.getElementById('historial-panel').classList.remove('show');
+}
+
+// Reconstruye y muestra el recibo de una venta o abono ya registrado, reutilizando
+// el mismo paso de recibo (con PDF/WhatsApp) de los paneles de venta/abono.
+async function verReciboHistorial(item) {
+  if (item.tipo === 'venta') {
+    const { data, error } = await supabase
+      .from('ventas')
+      .select(`
+        folio, tipo, total, enganche, creado_en, saldo_pendiente_venta,
+        cliente:clientes(nombre),
+        vendedor:usuarios!ventas_vendedor_id_fkey(nombre),
+        venta_items(cantidad, precio_unitario, producto:productos(nombre))
+      `)
+      .eq('id', item.id)
+      .single();
+
+    if (error || !data) {
+      toast('No se pudo cargar el recibo.', 'error');
+      return;
+    }
+
+    mostrarReciboVenta({
+      folio: data.folio,
+      total: Number(data.total),
+      tipo: data.tipo,
+      enganche: Number(data.enganche),
+      saldoResultante: data.tipo === 'credito' ? Number(data.saldo_pendiente_venta) : null,
+      cliente: data.cliente ? data.cliente.nombre : null,
+      vendedor: data.vendedor ? data.vendedor.nombre : '—',
+      fecha: new Date(data.creado_en),
+      items: (data.venta_items || []).map((it) => ({
+        producto: { nombre: it.producto ? it.producto.nombre : '—' },
+        cantidad: it.cantidad,
+        precioUnitario: Number(it.precio_unitario),
+      })),
+    });
+    document.getElementById('venta-panel-titulo').textContent = 'Recibo de venta';
+    document.getElementById('venta-panel').classList.add('show');
+  } else {
+    const { data, error } = await supabase
+      .from('abonos')
+      .select(`
+        folio, monto, creado_en,
+        cliente:clientes(nombre, saldo_pendiente),
+        vendedor:usuarios!abonos_vendedor_id_fkey(nombre)
+      `)
+      .eq('id', item.id)
+      .single();
+
+    if (error || !data) {
+      toast('No se pudo cargar el recibo.', 'error');
+      return;
+    }
+
+    mostrarReciboAbono({
+      folio: data.folio,
+      monto: Number(data.monto),
+      // Saldo actual del cliente, no un snapshot histórico de ese momento — no existe
+      // un campo que guarde el saldo restante de cada abono individual.
+      saldoRestante: data.cliente ? Number(data.cliente.saldo_pendiente) : 0,
+      cliente: data.cliente ? data.cliente.nombre : '',
+      vendedor: data.vendedor ? data.vendedor.nombre : '—',
+      fecha: new Date(data.creado_en),
+    });
+    document.getElementById('abono-panel-titulo').textContent = 'Recibo de abono';
+    document.getElementById('abono-panel').classList.add('show');
+  }
 }
 
 async function confirmarAnular(item, btn) {

@@ -600,3 +600,39 @@ reseteo de contraseña por admin.
 - [x] Fase C: RLS en las 11 tablas + 14 funciones reescritas con `auth.uid()`
 - [ ] Fase D: Edge Function `admin-usuarios` (crear/resetear contraseña de otro usuario)
 - [x] Versión subida a `vf-v16`
+
+---
+
+## 18 — Historial: ver/reenviar el recibo de una venta o abono ya registrado ✅
+
+**Blocked by:** Ninguno
+
+**Qué construye:** Luis reportó que no había forma de volver a ver o reenviar el recibo
+de una venta/abono ya registrado — el recibo (con folio, detalle, y botones de PDF/
+WhatsApp) solo se mostraba una vez, justo al confirmar la operación; Historial solo
+mostraba folio/monto/fecha sin ninguna acción para reabrirlo.
+
+**Estado:** completado — cada tarjeta de Historial (venta o abono, anulada o no) ahora es
+clicable y abre el mismo paso de recibo que ya existía en los paneles de venta/abono
+(reutiliza `mostrarReciboVenta()`/`mostrarReciboAbono()` y sus botones de PDF/WhatsApp),
+con los datos reconstruidos desde Supabase (`venta_items` para el detalle de productos).
+El título del panel cambia a "Recibo de venta"/"Recibo de abono" para no decir "Nueva
+venta" sobre un recibo pasado. El botón "Anular" usa `stopPropagation` para no abrir
+también el recibo al anular. **Limitación conocida:** el "saldo pendiente restante" de un
+recibo de abono reenviado muestra el saldo *actual* del cliente, no un snapshot del
+momento exacto de ese abono — no existe ese dato guardado en ningún lado (el campo nunca
+se persistió, solo se devolvía una vez desde `registrar_abono()`). El saldo de una venta a
+crédito sí es exacto porque `ventas.saldo_pendiente_venta` es una columna real que se
+actualiza en vivo.
+
+Verificado en navegador contra Supabase en producción (local, antes de subir): clic en
+una venta de historial reconstruye el recibo correcto (folio, fecha, vendedor, cliente,
+tipo, items, total); clic en un abono reconstruye el suyo; clic en "Anular" anula sin
+abrir el recibo por accidente; sin errores de consola.
+
+- [x] Tarjetas de Historial clicables, abren el recibo original (venta o abono)
+- [x] Reutiliza los botones de PDF/WhatsApp ya existentes
+- [x] Título del panel dinámico ("Recibo de venta"/"Recibo de abono" vs "Nueva venta"/
+      "Nuevo abono")
+- [x] `stopPropagation` en "Anular" para no disparar también el recibo
+- [x] Versión subida a `vf-v17`
