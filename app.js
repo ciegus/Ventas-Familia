@@ -902,6 +902,71 @@ function soportaCompartirArchivos() {
   }
 }
 
+// ---------- Selector de cliente con búsqueda (venta y abono) ----------
+// Reemplaza el <select> nativo — con más de un puñado de clientes, desplazarse por un
+// select en el celular deja de ser cómodo. Escribe para filtrar, toca para elegir.
+
+function crearSelectorCliente({ inputId, listaId, chipId, chipNombreId, quitarId, renderItem, textoVacio, onCambiar }) {
+  let clientes = [];
+  let seleccionado = null;
+
+  function renderLista(filtro) {
+    const lista = document.getElementById(listaId);
+    const q = filtro.trim().toLowerCase();
+    const filtrados = q ? clientes.filter((c) => c.nombre.toLowerCase().includes(q)) : clientes;
+
+    lista.innerHTML = '';
+    if (filtrados.length === 0) {
+      lista.innerHTML = `<p class="tab-placeholder">${q ? 'Ningún cliente coincide.' : textoVacio}</p>`;
+      return;
+    }
+    filtrados.forEach((cliente) => {
+      const item = document.createElement('div');
+      item.className = 'list-item';
+      item.innerHTML = renderItem(cliente);
+      item.addEventListener('click', () => seleccionar(cliente));
+      lista.appendChild(item);
+    });
+  }
+
+  function seleccionar(cliente) {
+    seleccionado = cliente;
+    document.getElementById(inputId).style.display = 'none';
+    document.getElementById(listaId).style.display = 'none';
+    document.getElementById(listaId).innerHTML = '';
+    document.getElementById(chipNombreId).textContent = cliente.nombre;
+    document.getElementById(chipId).style.display = 'flex';
+    if (onCambiar) onCambiar(cliente);
+  }
+
+  function quitar() {
+    seleccionado = null;
+    document.getElementById(chipId).style.display = 'none';
+    document.getElementById(inputId).style.display = 'block';
+    document.getElementById(inputId).value = '';
+    document.getElementById(listaId).style.display = 'block';
+    renderLista('');
+    document.getElementById(inputId).focus();
+    if (onCambiar) onCambiar(null);
+  }
+
+  document.getElementById(inputId).addEventListener('input', (e) => renderLista(e.target.value));
+  document.getElementById(quitarId).addEventListener('click', quitar);
+
+  return {
+    setClientes(nuevaLista) {
+      clientes = nuevaLista;
+      seleccionado = null;
+      document.getElementById(chipId).style.display = 'none';
+      document.getElementById(inputId).style.display = 'block';
+      document.getElementById(inputId).value = '';
+      document.getElementById(listaId).style.display = 'block';
+      renderLista('');
+    },
+    getSeleccionado: () => seleccionado,
+  };
+}
+
 // ---------- Ventas ----------
 
 const fechaFmt = new Intl.DateTimeFormat('es-MX', {
@@ -913,6 +978,7 @@ let ventaCarrito = new Map(); // producto_id -> { producto, cantidad }
 let ventaProductosCache = [];
 let ventaTipo = 'contado';
 let ventaReciboFolioActual = null;
+let ventaClientePicker;
 
 function setVentaTipo(tipo) {
   ventaTipo = tipo;
@@ -954,14 +1020,7 @@ async function openVentaPanel() {
     stock: p.stock_almacen[0]?.cantidad ?? 0,
   }));
 
-  const clienteSelect = document.getElementById('venta-cliente');
-  clienteSelect.innerHTML = '<option value="">Sin cliente</option>';
-  (clientes || []).forEach((c) => {
-    const opt = document.createElement('option');
-    opt.value = c.id;
-    opt.textContent = c.nombre;
-    clienteSelect.appendChild(opt);
-  });
+  ventaClientePicker.setClientes(clientes || []);
 
   renderVentaProductos();
   renderVentaCarrito();
@@ -1106,10 +1165,9 @@ async function confirmarVenta() {
   }
 
   const session = getSession();
-  const clienteId = document.getElementById('venta-cliente').value || null;
-  const clienteNombre = clienteId
-    ? document.getElementById('venta-cliente').selectedOptions[0].textContent
-    : null;
+  const clienteSeleccionado = ventaClientePicker.getSeleccionado();
+  const clienteId = clienteSeleccionado ? clienteSeleccionado.id : null;
+  const clienteNombre = clienteSeleccionado ? clienteSeleccionado.nombre : null;
 
   if (ventaTipo === 'credito' && !clienteId) {
     errorEl.textContent = 'La venta a crédito requiere un cliente.';
@@ -1225,6 +1283,16 @@ function mostrarReciboVenta(info) {
 }
 
 function initVentas() {
+  ventaClientePicker = crearSelectorCliente({
+    inputId: 'venta-cliente-buscar',
+    listaId: 'venta-cliente-lista',
+    chipId: 'venta-cliente-seleccionado',
+    chipNombreId: 'venta-cliente-seleccionado-nombre',
+    quitarId: 'venta-cliente-quitar',
+    renderItem: (c) => `<div class="li-main"><div class="li-title">${escapeHtml(c.nombre)}</div></div>`,
+    textoVacio: 'No hay clientes registrados.',
+  });
+
   document.getElementById('btn-nueva-venta').addEventListener('click', openVentaPanel);
   document.getElementById('venta-cerrar').addEventListener('click', closeVentaPanel);
   document.getElementById('venta-confirmar').addEventListener('click', confirmarVenta);
@@ -1242,8 +1310,8 @@ function initVentas() {
 
 // ---------- Abonos ----------
 
-let abonoClientesCache = [];
 let abonoReciboFolioActual = null;
+let abonoClientePicker;
 
 async function openAbonoPanel() {
   document.getElementById('abono-panel-titulo').textContent = 'Nuevo abono';
@@ -1264,16 +1332,7 @@ async function openAbonoPanel() {
     return;
   }
 
-  abonoClientesCache = data || [];
-
-  const select = document.getElementById('abono-cliente');
-  select.innerHTML = '<option value="">Selecciona un cliente con saldo pendiente</option>';
-  abonoClientesCache.forEach((c) => {
-    const opt = document.createElement('option');
-    opt.value = c.id;
-    opt.textContent = `${c.nombre} — ${money.format(Number(c.saldo_pendiente))}`;
-    select.appendChild(opt);
-  });
+  abonoClientePicker.setClientes(data || []);
 
   document.getElementById('abono-panel').classList.add('show');
 }
@@ -1282,9 +1341,7 @@ function closeAbonoPanel() {
   document.getElementById('abono-panel').classList.remove('show');
 }
 
-function handleAbonoClienteChange() {
-  const clienteId = document.getElementById('abono-cliente').value;
-  const cliente = abonoClientesCache.find((c) => c.id === clienteId);
+function handleAbonoClienteChange(cliente) {
   const saldoEl = document.getElementById('abono-saldo-actual');
 
   if (cliente) {
@@ -1303,8 +1360,8 @@ async function confirmarAbono() {
   const confirmBtn = document.getElementById('abono-confirmar');
   errorEl.textContent = '';
 
-  const clienteId = document.getElementById('abono-cliente').value;
-  const cliente = abonoClientesCache.find((c) => c.id === clienteId);
+  const cliente = abonoClientePicker.getSeleccionado();
+  const clienteId = cliente ? cliente.id : null;
   const monto = parseFloat(document.getElementById('abono-monto').value);
 
   if (!clienteId) {
@@ -1376,9 +1433,22 @@ function mostrarReciboAbono(info) {
 }
 
 function initAbonos() {
+  abonoClientePicker = crearSelectorCliente({
+    inputId: 'abono-cliente-buscar',
+    listaId: 'abono-cliente-lista',
+    chipId: 'abono-cliente-seleccionado',
+    chipNombreId: 'abono-cliente-seleccionado-nombre',
+    quitarId: 'abono-cliente-quitar',
+    renderItem: (c) => `
+      <div class="li-main"><div class="li-title">${escapeHtml(c.nombre)}</div></div>
+      <div class="li-badge pendiente">${money.format(Number(c.saldo_pendiente))}</div>
+    `,
+    textoVacio: 'Ningún cliente tiene saldo pendiente.',
+    onCambiar: handleAbonoClienteChange,
+  });
+
   document.getElementById('btn-nuevo-abono').addEventListener('click', openAbonoPanel);
   document.getElementById('abono-cerrar').addEventListener('click', closeAbonoPanel);
-  document.getElementById('abono-cliente').addEventListener('change', handleAbonoClienteChange);
   document.getElementById('abono-confirmar').addEventListener('click', confirmarAbono);
   document.getElementById('abono-recibo-cerrar').addEventListener('click', closeAbonoPanel);
   document.getElementById('abono-recibo-pdf').addEventListener('click', (e) => {

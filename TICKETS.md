@@ -642,3 +642,38 @@ original y no el saldo actualizado por el segundo; sin errores de consola.
       "Nuevo abono")
 - [x] `stopPropagation` en "Anular" para no disparar también el recibo
 - [x] Versión subida a `vf-v17`
+
+---
+
+## 19 — Buscador de cliente en Nueva venta y Nuevo abono ✅
+
+**Blocked by:** Ninguno
+
+**Qué construye:** Luis anticipó que el `<select>` nativo para elegir cliente en Nueva
+venta/Nuevo abono se iba a volver incómodo conforme creciera la clientela (hoy solo 3
+clientes, pero desplazarse por un select largo en el celular no escala). Se reemplazó por
+un buscador: campo de texto que filtra en vivo una lista de tarjetas tocables (mismo
+estilo `.list-item` que el resto de la app), y al elegir uno se muestra como una "ficha"
+con botón ✕ para quitarlo y volver a buscar.
+
+**Estado:** completado — nueva función compartida `crearSelectorCliente()` en `app.js`
+(un solo componente reutilizado por los dos paneles, no dos implementaciones separadas)
+que maneja filtrado, selección y el estado "quitar". Reemplaza `<select id="venta-cliente">`
+y `<select id="abono-cliente">` por un `<input>` de búsqueda + `<div>` de resultados +
+"ficha" de seleccionado en `index.html`. En Nueva venta el cliente sigue siendo opcional
+(no seleccionar nada = "sin cliente", igual que antes); en Nuevo abono la lista solo
+muestra clientes con saldo pendiente > 0 con el saldo junto al nombre, igual que el select
+viejo, y elegir uno dispara el mismo `handleAbonoClienteChange()` que ya mostraba el
+"Saldo pendiente actual".
+
+Verificado en navegador contra Supabase en producción (local, antes de subir): escribir
+"isa"/"vic" filtra correctamente en ambos paneles; seleccionar oculta el buscador y
+muestra la ficha con el nombre correcto; el botón ✕ quita la selección y vuelve a mostrar
+la lista completa; una venta de contado y un abono reales completados a través del nuevo
+buscador generan el folio/recibo correcto con el cliente correcto; sin errores de consola.
+
+- [x] `crearSelectorCliente()` compartido entre Nueva venta y Nuevo abono
+- [x] Filtro en vivo por nombre (contiene, sin distinguir mayúsculas/minúsculas)
+- [x] Cliente opcional en venta se mantiene igual (sin seleccionar = sin cliente)
+- [x] Abono conserva el filtro de saldo pendiente > 0 y el saldo visible junto al nombre
+- [x] Versión subida a `vf-v19`

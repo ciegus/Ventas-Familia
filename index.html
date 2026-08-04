@@ -390,10 +390,13 @@
         </div>
 
         <div class="field">
-          <label for="venta-cliente" id="venta-cliente-label">Cliente (opcional)</label>
-          <select id="venta-cliente">
-            <option value="">Sin cliente</option>
-          </select>
+          <label for="venta-cliente-buscar" id="venta-cliente-label">Cliente (opcional)</label>
+          <input type="text" id="venta-cliente-buscar" placeholder="Buscar cliente por nombre..." autocomplete="off" />
+          <div id="venta-cliente-lista" class="cliente-picker-lista"></div>
+          <div id="venta-cliente-seleccionado" class="cliente-picker-chip" style="display:none;">
+            <span id="venta-cliente-seleccionado-nombre"></span>
+            <button type="button" id="venta-cliente-quitar" class="icon-btn-alt" aria-label="Quitar cliente">✕</button>
+          </div>
         </div>
 
         <div class="field" id="venta-enganche-field" style="display:none;">
@@ -442,10 +445,13 @@
       <!-- Paso: armar abono -->
       <div id="abono-paso-armar">
         <div class="field">
-          <label for="abono-cliente">Cliente</label>
-          <select id="abono-cliente">
-            <option value="">Selecciona un cliente con saldo pendiente</option>
-          </select>
+          <label for="abono-cliente-buscar">Cliente</label>
+          <input type="text" id="abono-cliente-buscar" placeholder="Buscar cliente con saldo pendiente..." autocomplete="off" />
+          <div id="abono-cliente-lista" class="cliente-picker-lista"></div>
+          <div id="abono-cliente-seleccionado" class="cliente-picker-chip" style="display:none;">
+            <span id="abono-cliente-seleccionado-nombre"></span>
+            <button type="button" id="abono-cliente-quitar" class="icon-btn-alt" aria-label="Quitar cliente">✕</button>
+          </div>
         </div>
 
         <p id="abono-saldo-actual" class="tab-placeholder" style="display:none; padding: 0 0 16px; text-align:left;"></p>
