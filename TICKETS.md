@@ -618,17 +618,23 @@ clicable y abre el mismo paso de recibo que ya existía en los paneles de venta/
 con los datos reconstruidos desde Supabase (`venta_items` para el detalle de productos).
 El título del panel cambia a "Recibo de venta"/"Recibo de abono" para no decir "Nueva
 venta" sobre un recibo pasado. El botón "Anular" usa `stopPropagation` para no abrir
-también el recibo al anular. **Limitación conocida:** el "saldo pendiente restante" de un
-recibo de abono reenviado muestra el saldo *actual* del cliente, no un snapshot del
-momento exacto de ese abono — no existe ese dato guardado en ningún lado (el campo nunca
-se persistió, solo se devolvía una vez desde `registrar_abono()`). El saldo de una venta a
-crédito sí es exacto porque `ventas.saldo_pendiente_venta` es una columna real que se
-actualiza en vivo.
+también el recibo al anular.
+
+**Ajuste (mismo día, a pedido de Luis):** el "saldo pendiente restante" de un recibo de
+abono reenviado inicialmente mostraba el saldo *actual* del cliente en vez de una copia
+fiel de la transacción — quedaba mal si el cliente abonaba de nuevo después. Se agregó
+`abonos.saldo_restante numeric` (snapshot guardado por `registrar_abono()` al momento del
+abono, mismo patrón que `venta_items.costo_unitario`) y el recibo reabierto ahora lee ese
+campo en vez de recalcular contra el saldo actual. No había ningún abono real en
+producción al momento del cambio — solo se hizo backfill del único registro de prueba
+existente (ya anulado).
 
 Verificado en navegador contra Supabase en producción (local, antes de subir): clic en
 una venta de historial reconstruye el recibo correcto (folio, fecha, vendedor, cliente,
 tipo, items, total); clic en un abono reconstruye el suyo; clic en "Anular" anula sin
-abrir el recibo por accidente; sin errores de consola.
+abrir el recibo por accidente; un abono real seguido de un segundo abono al mismo cliente
+confirma que el recibo del primero, reabierto después, sigue mostrando su saldo restante
+original y no el saldo actualizado por el segundo; sin errores de consola.
 
 - [x] Tarjetas de Historial clicables, abren el recibo original (venta o abono)
 - [x] Reutiliza los botones de PDF/WhatsApp ya existentes

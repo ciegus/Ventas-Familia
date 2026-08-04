@@ -1367,7 +1367,7 @@ function mostrarReciboAbono(info) {
     <div class="recibo-linea"><span>Cliente</span><span>${escapeHtml(info.cliente)}</span></div>
     <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
     <div class="recibo-linea total"><span>Monto abonado</span><span>${money.format(info.monto)}</span></div>
-    <div class="recibo-linea"><span>Saldo pendiente restante</span><span>${money.format(info.saldoRestante)}</span></div>
+    <div class="recibo-linea"><span>Saldo pendiente restante</span><span>${info.saldoRestante === null ? 'No disponible' : money.format(info.saldoRestante)}</span></div>
   `;
 
   document.getElementById('abono-paso-armar').style.display = 'none';
@@ -1575,8 +1575,8 @@ async function verReciboHistorial(item) {
     const { data, error } = await supabase
       .from('abonos')
       .select(`
-        folio, monto, creado_en,
-        cliente:clientes(nombre, saldo_pendiente),
+        folio, monto, creado_en, saldo_restante,
+        cliente:clientes(nombre),
         vendedor:usuarios!abonos_vendedor_id_fkey(nombre)
       `)
       .eq('id', item.id)
@@ -1590,9 +1590,9 @@ async function verReciboHistorial(item) {
     mostrarReciboAbono({
       folio: data.folio,
       monto: Number(data.monto),
-      // Saldo actual del cliente, no un snapshot histórico de ese momento — no existe
-      // un campo que guarde el saldo restante de cada abono individual.
-      saldoRestante: data.cliente ? Number(data.cliente.saldo_pendiente) : 0,
+      // Snapshot guardado al momento del abono (registrar_abono) — copia fiel de la
+      // transacción, no el saldo actual del cliente (que puede haber cambiado desde).
+      saldoRestante: data.saldo_restante !== null ? Number(data.saldo_restante) : null,
       cliente: data.cliente ? data.cliente.nombre : '',
       vendedor: data.vendedor ? data.vendedor.nombre : '—',
       fecha: new Date(data.creado_en),
