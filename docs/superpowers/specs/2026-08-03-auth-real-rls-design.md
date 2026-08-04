@@ -228,9 +228,12 @@ Supabase, nunca en el repo ni en el cliente) solo para las llamadas a
   Regina con su contraseña temporal → dashboard con datos reales, cero errores de
   consola; Reportes → "Por vendedor" muestra a los 5 usuarios reales, incluido Luis Lima
   con su venta de $1,300 (la ausencia de esta fila era justo el hallazgo del ticket 16);
-  logout limpio, vuelve al paso 1 del login. **Pendiente:** que Angie, Alexa, Alexis y el
-  propio Luis prueben su contraseña temporal antes de considerar la Fase B cerrada del
-  todo — solo se probó con la cuenta de Regina en esta sesión.
+  logout limpio, vuelve al paso 1 del login. Commit `20a5053` + push a `main` (2026-08-04)
+  — Vercel redeployó automáticamente; confirmado en vivo en `ventas-familia.vercel.app`
+  (no solo en local): login/dashboard/logout de Regina, y Luis confirmó que su propia
+  contraseña temporal ya le funciona en el sitio real. Angie, Alexis y Alexa confirmaron
+  lo mismo (2026-08-04). **Fase B cerrada — los 5 usuarios reales entran por Supabase
+  Auth en producción, confirmado por cada uno.**
 - **Fase C — no arrancada.** Habilitar RLS (sección 3) y reescribir las 16 funciones
   `SECURITY DEFINER` para usar `auth.uid()` (sección 4) — el paso que de verdad cierra el
   hallazgo crítico del audit. `login_usuario()` sigue existiendo en la base (sin uso desde

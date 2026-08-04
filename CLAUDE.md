@@ -107,13 +107,14 @@ Supabase Auth real (JWT por usuario) y habilitar RLS en las 11 tablas, para cerr
 hallazgo crítico de `PROJECT_AUDIT.md` sección 8. Diseño completo en
 [docs/superpowers/specs/2026-08-03-auth-real-rls-design.md](docs/superpowers/specs/2026-08-03-auth-real-rls-design.md),
 ejecutado por fases (cada una verificable antes de la siguiente, sin ambiente de staging
-— deuda técnica #6 del audit). **Fase A y Fase B ya completadas** (2026-08-04): los 5
+— deuda técnica #6 del audit). **Fase A y Fase B completadas y cerradas** (2026-08-04): los 5
 usuarios reales tienen cuenta en Supabase Auth (correo interno
 `@ventasfamilia.internal`, nunca visible en la UI) enlazada a su fila de `usuarios` vía
 `auth_id`; el login del frontend ya usa `supabase.auth.signInWithPassword()` en vez de la
-función vieja — verificado en vivo en el navegador (login real, dashboard, Reportes,
-logout, cero errores de consola), pero solo se probó con una de las 5 cuentas (Regina) —
-falta que Angie, Alexa, Alexis y Luis prueben la suya. **Pendientes: Fase C** (habilitar
+función vieja — verificado en vivo contra producción (`ventas-familia.vercel.app`, no
+solo local): login/dashboard/Reportes/logout sin errores de consola, y los 5 usuarios
+reales (Luis, Angie, Alexa, Alexis, Regina) confirmaron que su contraseña temporal les
+funciona. **Pendientes: Fase C** (habilitar
 RLS + reescribir las 16 funciones `SECURITY DEFINER` para usar `auth.uid()` — el paso que
 de verdad cierra el hueco de seguridad) **y Fase D** (Edge Function `admin-usuarios` con
 `service_role`, para que el admin pueda seguir dando de alta usuarios y reseteando
