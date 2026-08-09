@@ -1074,3 +1074,219 @@ body {
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   }
 }
+
+/* ---------- CRM: banner de seguimientos en Inicio ---------- */
+
+.dash-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(120deg, var(--accent-dark), var(--accent));
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.dash-banner-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.dash-banner-text {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.dash-banner-text small {
+  display: block;
+  font-weight: 400;
+  opacity: 0.85;
+  font-size: 12px;
+  margin-top: 1px;
+}
+
+.dash-banner-btn {
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.22);
+  border: none;
+  border-radius: 8px;
+  padding: 7px 12px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ---------- CRM: ficha de cliente ---------- */
+
+.ficha-card {
+  background: var(--navy);
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+
+.ficha-card .ficha-nombre {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.ficha-card .ficha-sub {
+  font-size: 13px;
+  color: #E8DACA;
+  margin-top: 2px;
+}
+
+.ficha-card .ficha-deuda {
+  color: #F3C6BC;
+  font-weight: 700;
+}
+
+.ficha-card .ficha-acciones {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ficha-card .ficha-accion {
+  flex: 1;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.14);
+  border: none;
+  border-radius: 9px;
+  padding: 9px 6px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ficha-card .ficha-accion-wa {
+  background: #718355;
+}
+
+.ficha-proxima {
+  background: #F7E9D6;
+  border: 1px solid #EAD3A8;
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.ficha-proxima-etiqueta {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--error);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.ficha-proxima.proxima-futura .ficha-proxima-etiqueta {
+  color: #8B735B;
+}
+
+.ficha-proxima-texto {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.ficha-proxima-acciones {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.ficha-proxima-btn {
+  flex: 1;
+  text-align: center;
+  border-radius: 8px;
+  padding: 8px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #fff;
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.ficha-proxima-btn-ok {
+  background: #718355;
+  border-color: #718355;
+  color: #fff;
+}
+
+/* ---------- CRM: badges extra en listas de Clientes/Seguimientos ---------- */
+
+.li-badge.vencido {
+  background: #F5DFDA;
+  color: var(--error);
+}
+
+.li-badge.hoy {
+  background: #F7E9D6;
+  color: #C79052;
+}
+
+.li-badge.inactivo {
+  background: #EFE5D8;
+  color: var(--muted);
+}
+
+.seguimiento-acciones {
+  display: flex;
+  gap: 6px;
+  padding: 0 16px 12px;
+  margin-top: -6px;
+}
+
+.seguimiento-acciones button {
+  flex: 1;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.seguimiento-acciones button.acc-wa {
+  background: #718355;
+  color: #fff;
+  border-color: #718355;
+}
+
+.seguimientos-grupo-titulo {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 18px 0 8px;
+}
+
+.seguimientos-grupo-titulo.grupo-vencidos {
+  color: var(--error);
+}
+
+.seguimientos-grupo-titulo.grupo-hoy {
+  color: #C79052;
+}
+
+details.seguimientos-estancados summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 18px 0 8px;
+}

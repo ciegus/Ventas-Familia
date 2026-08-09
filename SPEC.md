@@ -269,5 +269,165 @@ Fonts), `manifest.json` (theme_color/background_color), `icon.svg` (gradiente de
 monograma LS). Verificado en `localhost:3000` — tokens, gradiente de botón primario y
 color de error aplicando el valor exacto especificado, sin errores de consola.
 
-**Pendiente:** layout de escritorio (sidebar) y módulo CRM (ficha de cliente,
-seguimientos, registro de contacto) — ver `TICKETS.md`.
+**Implementado (layout de escritorio, esta misma fecha):** sidebar en pantallas
+≥1024px reutilizando la navegación de pestañas existente (`switchTab()`/`initNav()` en
+`app.js` sin cambios). Verificado en local (desktop y móvil, sin regresión) y confirmado
+por Luis en producción — 2026-08-09, "se ve muy bien". Ver `TICKETS.md` tickets 21 y 22.
+
+**Pendiente:** módulo CRM (sección 17).
+
+## 17. Módulo CRM: contacto y seguimiento de clientes
+
+Extiende el módulo Clientes (sección 2). Objetivo de negocio: hoy, cuando alguien
+pregunta por un producto y no compra, esa información se pierde — nadie la anota, y
+cuando llega mercancía parecida nadie se acuerda de avisarle. Este módulo existe para
+que esa pregunta quede registrada y alguien vuelva a tocar el tema, en vez de perderse.
+
+Decisiones confirmadas por Luis el 2026-08-09, sobre la simulación compartida.
+
+> **Evaluación de flujo (2026-08-09):** antes de tocar Supabase, se revisó el flujo de
+> captura/consulta de este módulo contra investigación real de por qué fallan los CRM en
+> la práctica y patrones de UX de recordatorios. Se encontraron 3 problemas de fondo y se
+> corrigieron aquí mismo (ver notas "⚠️ Corrección de flujo" en cada sub-sección) — el
+> detalle completo del razonamiento vive en la conversación, resumen abajo:
+> 1. **La captura tenía más fricción de la necesaria** — la única razón de ser de este
+>    módulo es que alguien SÍ registre el contacto en el momento; cada campo obligatorio
+>    de más es una razón para saltárselo bajo presión. Fuente: estudios de adopción de
+>    CRM muestran que la entrada manual de datos es la causa #1 de que los vendedores
+>    dejen de usarlo — [Coffee.ai](https://www.coffee.ai/articles/why-sales-reps-ignore-crm/),
+>    [Clari](https://www.clari.com/blog/why-your-sales-teams-crm-adoption-is-low/).
+> 2. **Dejar el "match de interés" para v2 mata el propósito del módulo antes de
+>    empezar** — si nadie vuelve a ver lo que se capturó, se repite exactamente el
+>    problema original (preguntas que se pierden), solo que ahora en una base de datos en
+>    vez de en la cabeza de alguien. Se reincorpora una versión simplificada en 17.8.
+> 3. **Una lista de "vencidos" que solo crece nunca deja de sentirse urgente — hasta que
+>    deja de sentirse urgente para siempre** (fatiga de alertas): si un seguimiento lleva
+>    semanas vencido junto a los de ayer, el ojo deja de distinguir cuál sí importa hoy.
+>    Fuente: [Smashing Magazine — Notifications UX](https://www.smashingmagazine.com/2025/07/design-guidelines-better-notifications-ux/),
+>    revisión de fatiga de alertas en salud (mismo patrón, distinto dominio) —
+>    [PMC 11845892](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11845892/). Se agregó el
+>    bucket "Estancados" en 17.5.
+
+### 17.1 Interacción (registro de contacto)
+
+| Campo | Regla |
+|---|---|
+| Cliente | Obligatorio. Si quien pregunta no es cliente existente, se da de alta al vuelo (solo nombre, igual que hoy en el módulo Clientes). |
+| Tipo | Uno de: **Preguntó por algo** / **Le ofrecí** / **Otro** — **preseleccionado en "Preguntó por algo"** (el caso más común); el vendedor solo lo toca si de verdad fue otra cosa. |
+| Producto de interés | Texto libre, opcional — casi siempre el producto todavía no existe en Inventario, por eso no es una referencia a `productos`. |
+| Nota | Texto libre, opcional. |
+| Registrado por | El usuario que la captura (automático, igual que ventas/abonos — se resuelve server-side desde `auth.uid()`, nunca lo manda el cliente). |
+| Fecha | Automática al guardar. |
+
+**⚠️ Corrección de flujo — captura mínima viable:** con tipo preseleccionado y
+seguimiento en "sí, 3 días" preseleccionado (ver 17.2), lo único que el vendedor
+**tiene** que hacer para guardar es escribir qué le interesó al cliente y tocar Guardar
+— dos acciones, no cinco. Todo lo demás (tipo, nota, fecha de seguimiento) es ajustar un
+default, no llenar un formulario desde cero. Esto es intencional: el momento de
+capturar (a media conversación, con el cliente enfrente o recién colgado WhatsApp) es el
+peor momento para pedirle a alguien que piense en cinco decisiones.
+
+### 17.2 Seguimiento
+
+Al registrar una interacción, opcionalmente se marca "dar seguimiento" —
+**preseleccionado en "sí, en 3 días"** (ver nota de 17.1; se puede cambiar a fecha
+específica o quitar con un toque).
+
+| Campo | Regla |
+|---|---|
+| Fecha de seguimiento | Atajo rápido "en 3 días" (**default**, preseleccionado) o fecha específica elegida a mano. |
+| Estado | `pendiente` → `cerrado`. **"Vencido" no se guarda** — es calculado (`seguimiento_fecha < hoy AND estado = 'pendiente'`). |
+| Cierre | Al cerrar: **Compró** o **No quiso** (nota opcional). También se puede **posponer** sin cerrar — solo cambia la fecha, el seguimiento sigue `pendiente`. |
+| Vínculo con la venta (si "Compró") | Opcional. **No se escribe un folio a mano** — se ofrece un selector con las ventas recientes (últimos 7 días) de ese cliente para tocar una, o se cierra sin vincular ninguna. |
+
+**⚠️ Corrección de flujo — evitar seguimientos duplicados sin bloquear:** si el cliente
+ya tiene otro seguimiento `pendiente` al registrar uno nuevo, se muestra un aviso suave
+("Ya tiene un seguimiento pendiente del 6 ago — ¿de todas formas crear uno nuevo?") en
+vez de impedirlo — evita que la ficha se llene de seguimientos repetidos del mismo tema
+sin agregar un candado rígido que estorbe en un caso legítimo (dos temas distintos).
+
+**Visibilidad y permisos:** igual que el resto de la app — filosofía "todos ven todo"
+(sección 1). Cualquier usuario puede ver y cerrar el seguimiento de cualquier otro, no
+solo el propio. No aplica la restricción que sí tienen las anulaciones (sección 6),
+porque cerrar un seguimiento no revierte dinero ni stock.
+
+### 17.3 Cliente inactivo
+
+Un cliente se marca visualmente como **inactivo** cuando no tiene ninguna venta no
+anulada en los últimos **45 días**. Es un cálculo en tiempo real sobre `ventas.creado_en`,
+no un campo almacenado.
+
+### 17.4 Ficha de cliente (pantalla nueva)
+
+Reemplaza el comportamiento actual de "tocar un cliente en la lista abre editar". Ahora
+abre una ficha con tres bloques (misma estructura en móvil y escritorio, confirmada
+sobre la simulación como variante única, sin dejar A/B/C a elegir):
+
+1. **Tarjeta del cliente** — nombre, teléfono, saldo pendiente, accesos directos
+   (WhatsApp, Registrar contacto, Editar).
+2. **Próxima acción** — el seguimiento pendiente o vencido más próximo de ese cliente,
+   fijo en pantalla (no se pierde al hacer scroll), con botones rápidos Compró / No
+   quiso / Posponer.
+3. **Historial combinado** — compras, abonos, contactos y seguimientos en orden
+   cronológico, con pestañas (Todo / Compras / Contactos / Seguimientos) para filtrar.
+
+El botón de editar (nombre/teléfono) sigue existiendo, ahora dentro de la ficha en vez de
+ser la acción por default al tocar la fila.
+
+### 17.5 Pantalla Seguimientos
+
+Lista global de seguimientos pendientes de todos los clientes, agrupados en **Vencidos /
+Para hoy / Próximos**. Accesible desde un acceso directo en Inicio.
+
+**⚠️ Corrección de flujo — evitar fatiga de alertas:** los seguimientos vencidos hace
+**más de 30 días** se muestran en un cuarto grupo aparte, **Estancados**, colapsado por
+default y sin el color rojo de "urgente" — para que la sección Vencidos siga
+significando "esto sí es reciente y sí importa hoy", en vez de volverse una lista larga
+que nadie revisa. No se cierran solos (cerrar algo sin que un humano decida podría
+ocultar un cliente real) — solo se separan visualmente.
+
+### 17.6 Alertas en Inicio
+
+Banner (mismo patrón visual que ya usa la app, ej. el de propuestas pendientes en MPM)
+con el conteo de seguimientos para hoy y vencidos, con botón para ir directo a la
+pantalla de Seguimientos. El conteo es **global** (todos los usuarios, no solo "los
+míos") — consistente con la filosofía "todos ven todo".
+
+### 17.7 Cliente inactivo → acción sugerida
+
+Al ver un cliente marcado inactivo (17.3) en la ficha o en la lista de Clientes, el
+único paso siguiente natural es registrar contacto para reactivarlo — así que el acceso
+"Registrar contacto" queda igual de visible ahí que en cualquier otro cliente (no se
+agrega un flujo especial). Se documenta aquí para que quien construya la UI no lo trate
+como un callejón sin salida — un cliente inactivo sin ninguna acción disponible sería
+solo una etiqueta triste, no algo accionable.
+
+### 17.8 Sugerencia de interés al dar de alta un producto (v1, versión simplificada)
+
+**⚠️ Corrección de flujo:** en el borrador anterior esto quedaba fuera de alcance v1,
+dejando que el vendedor recordara manualmente a quién avisar cuando llega mercancía
+parecida a algo que alguien pidió — es decir, **el mismo problema de memoria que este
+módulo existe para resolver**, solo que un paso más adelante en el proceso. Sin esto, el
+CRM corre el riesgo real de dejar de usarse en semanas: si capturar una pregunta nunca
+se traduce en una venta recuperada que alguien note, no hay valor visible y la captura
+se abandona (mismo patrón que documenta la investigación de adopción de CRM citada
+arriba).
+
+Versión v1 (barata, no es matching difuso ni tiempo real):
+
+- Al guardar un producto nuevo en Inventario (`saveProducto()`), se hace **una sola
+  búsqueda `ILIKE`** del nombre del producto contra `producto_interes` de interacciones
+  con `seguimiento_estado = 'pendiente'`.
+- Si hay coincidencias, un toast/aviso no bloqueante: *"N cliente(s) preguntaron algo
+  parecido — revisar"*, con acceso directo a esa lista filtrada en Seguimientos.
+- Es una **sugerencia para que un humano decida**, no un envío automático de nada — los
+  falsos positivos/negativos de un `ILIKE` son aceptables porque el costo de un
+  falso positivo es solo "revisar y descartar", no una acción irreversible.
+
+### 17.9 Fuera de alcance v1 — explícito
+
+- **Matching difuso o en tiempo real** (sinónimos, errores de dedo, coincidencia parcial
+  inteligente) — la versión v1 de 17.8 es una búsqueda simple, no un motor de búsqueda.
+- Reasignar un seguimiento a otro vendedor.
+- Recordatorios push — mismo alcance ya definido en la sección 13 original.
+- Reportes/métricas de conversión (preguntas → ventas) — posible v2, no v1.

@@ -114,6 +114,19 @@
           <span class="quick-action-icon">📦</span>
           Movimientos
         </button>
+        <button id="btn-seguimientos" class="quick-action quick-action-outline">
+          <span class="quick-action-icon">⏰</span>
+          Seguimientos
+        </button>
+
+        <div id="dash-seguimientos-banner" class="dash-banner" style="display:none;">
+          <div class="dash-banner-icon">🔔</div>
+          <div class="dash-banner-text">
+            <span id="dash-banner-texto"></span>
+            <small id="dash-banner-sub"></small>
+          </div>
+          <button id="dash-banner-btn" type="button" class="dash-banner-btn">Ver</button>
+        </div>
 
         <div class="dash-stats-row">
           <div class="dash-stat-card">
@@ -146,6 +159,7 @@
 
       <!-- Clientes -->
       <div id="tab-clientes" class="tab-panel">
+        <div id="clientes-filtros" class="chip-row"></div>
         <div id="clientes-list" class="list"></div>
         <p id="clientes-empty" class="tab-placeholder" style="display:none;">
           Aún no hay clientes registrados. Usa el botón + para agregar el primero.
@@ -579,6 +593,92 @@
     </div>
 
     <button id="fab-nuevo-movimiento" class="fab" type="button">+</button>
+  </div>
+
+  <!-- ============ Panel Ficha de cliente (fullscreen) ============ -->
+  <div id="ficha-panel" class="fullscreen-overlay">
+    <div class="fs-header">
+      <button id="ficha-cerrar" class="icon-btn" type="button">✕</button>
+      <h3 id="ficha-titulo">Cliente</h3>
+      <button id="ficha-editar" class="icon-btn" type="button" aria-label="Editar cliente">✏️</button>
+    </div>
+
+    <div class="fs-content">
+      <div id="ficha-card" class="ficha-card"></div>
+
+      <div id="ficha-proxima" class="ficha-proxima" style="display:none;">
+        <div class="ficha-proxima-etiqueta" id="ficha-proxima-etiqueta"></div>
+        <div class="ficha-proxima-texto" id="ficha-proxima-texto"></div>
+        <div class="ficha-proxima-acciones">
+          <button type="button" class="ficha-proxima-btn ficha-proxima-btn-ok" id="ficha-proxima-comprar">✔ Compró</button>
+          <button type="button" class="ficha-proxima-btn" id="ficha-proxima-no-quiso">✖ No quiso</button>
+          <button type="button" class="ficha-proxima-btn" id="ficha-proxima-posponer">📅 Posponer</button>
+        </div>
+      </div>
+
+      <h3 class="fs-subtitle">Historial</h3>
+      <div id="ficha-tabs" class="chip-row"></div>
+      <div id="ficha-timeline"></div>
+      <p id="ficha-timeline-empty" class="tab-placeholder" style="display:none;">
+        Sin actividad todavía.
+      </p>
+    </div>
+  </div>
+
+  <!-- ============ Formulario contacto (bottom sheet) ============ -->
+  <div id="contacto-sheet" class="sheet-overlay">
+    <div class="sheet">
+      <h3>Registrar contacto</h3>
+      <div class="field">
+        <label>¿Qué pasó?</label>
+        <div class="toggle-group" id="contacto-tipo-toggle">
+          <button type="button" class="toggle-btn active" data-tipo="pregunto">Preguntó</button>
+          <button type="button" class="toggle-btn" data-tipo="oferta">Le ofrecí</button>
+          <button type="button" class="toggle-btn" data-tipo="otro">Otro</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="contacto-producto">¿Qué le interesó? (opcional)</label>
+        <input id="contacto-producto" type="text" placeholder="Ej. Freidora de aire" />
+      </div>
+      <div class="field">
+        <label for="contacto-nota">Nota (opcional)</label>
+        <input id="contacto-nota" type="text" placeholder="Ej. Que sea de 5 litros" />
+      </div>
+      <div class="field">
+        <label>¿Dar seguimiento?</label>
+        <div class="toggle-group" id="contacto-seguimiento-toggle">
+          <button type="button" class="toggle-btn active" data-seg="3dias">Sí, en 3 días</button>
+          <button type="button" class="toggle-btn" data-seg="fecha">Elegir fecha</button>
+          <button type="button" class="toggle-btn" data-seg="no">No</button>
+        </div>
+      </div>
+      <div class="field" id="contacto-fecha-row" style="display:none;">
+        <label for="contacto-fecha">Fecha de seguimiento</label>
+        <input id="contacto-fecha" type="date" />
+      </div>
+      <p id="contacto-form-error" class="error-msg"></p>
+      <div class="sheet-actions">
+        <button id="contacto-cancelar" type="button" class="btn btn-outline">Cancelar</button>
+        <button id="contacto-guardar" type="button" class="btn btn-primary">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Panel Seguimientos (fullscreen) ============ -->
+  <div id="seguimientos-panel" class="fullscreen-overlay">
+    <div class="fs-header">
+      <button id="seguimientos-cerrar" class="icon-btn" type="button">✕</button>
+      <h3>Seguimientos</h3>
+      <span style="width:32px"></span>
+    </div>
+
+    <div class="fs-content">
+      <div id="seguimientos-list"></div>
+      <p id="seguimientos-empty" class="tab-placeholder" style="display:none;">
+        No hay seguimientos pendientes.
+      </p>
+    </div>
   </div>
 
   <div id="toast"></div>

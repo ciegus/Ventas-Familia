@@ -744,7 +744,7 @@ que Luis lo confirme visualmente antes de dar por cerrado el ticket.
 - [x] `manifest.json` — `theme_color`/`background_color`
 - [x] `icon.svg` — gradiente del monograma LS
 - [x] Verificado en local: tokens, gradiente, color de error, fuente, sin errores de consola
-- [ ] Confirmación visual de Luis en producción (pantallas post-login)
+- [x] Confirmación visual de Luis en producción (pantallas post-login) — 2026-08-09, "se ve muy bien"
 - [x] Versión subida a `vf-v21`
 
 ---
@@ -786,7 +786,7 @@ en escritorio) — pendiente que Luis lo confirme.
 - [x] `styles.css` — media query `min-width:1024px` (sidebar, bottom-nav oculto, content centrado, grid ampliado)
 - [x] `app.js` — sin cambios (reutiliza `switchTab()`/`initNav()` existentes)
 - [x] Verificado en local: desktop (sidebar) y móvil (sin regresión) con y sin JS forzado, sin errores de consola
-- [ ] Confirmación visual de Luis en producción con sesión real
+- [x] Confirmación visual de Luis en producción con sesión real — 2026-08-09, "se ve muy bien"
 - [x] Versión subida a `vf-v22`
 
 ---
@@ -799,12 +799,95 @@ escritorio, ya que ambos son aditivos e independientes entre sí)
 **Qué construye:** ficha de cliente (tarjeta + próxima acción fija + timeline con
 pestañas, variante combinada confirmada), tabla `interacciones` (tipo, producto de
 interés en texto libre, nota, seguimiento con fecha y estado), pantalla de Seguimientos,
-banner de alertas en Inicio, y el "match de interés" al dar de alta un producto.
-Diagnóstico completo en la auditoría previa de esta conversación; simulación en
-`docs/superpowers/specs/2026-08-09-design-system-crm-familiar.md` (referencias de UI).
+banner de alertas en Inicio, y sugerencia de interés (búsqueda simple, no matching
+difuso) al dar de alta un producto en `saveProducto()`. Diagnóstico completo en la
+auditoría previa de esta conversación; simulación en
+`docs/superpowers/specs/2026-08-09-design-system-crm-familiar.md` (referencias de UI);
+reglas de negocio completas en `SPEC.md` sección 17.
 
-**Decisiones confirmadas:** tipos de contacto "Preguntó por algo / Le ofrecí / Otro",
-seguimiento por default a 3 días, cliente "inactivo" a partir de 45 días sin comprar.
+**Decisiones confirmadas:** tipos de contacto "Preguntó por algo / Le ofrecí / Otro"
+(preseleccionado en el primero), seguimiento por default a 3 días (preseleccionado),
+cliente "inactivo" a partir de 45 días sin comprar.
+
+**Evaluación de flujo (2026-08-09), antes de tocar esquema:** se revisó fricción de
+captura, riesgo de fatiga de alertas y completitud del ciclo (capturar → volver a usar
+la información) contra investigación real de adopción de CRM y patrones de UX de
+recordatorios — 3 correcciones aplicadas directo en `SPEC.md` sección 17 (marcadas "⚠️
+Corrección de flujo" en cada sub-sección): captura mínima con defaults preseleccionados
+(17.1/17.2), bucket "Estancados" separado de Vencidos para no diluir la urgencia real
+(17.5), y la sugerencia de interés al dar de alta producto pasó de "fuera de alcance v2"
+a "en alcance v1, simplificada" (17.8) — sin ella, el módulo corre el riesgo de dejar de
+usarse por no mostrar valor visible, el mismo motivo #1 de fracaso de adopción de CRM
+según la investigación citada en el SPEC.
+
+**Progreso — esquema de Supabase (2026-08-09):**
+
+- [x] Tabla `interacciones` (`cliente_id`, `tipo`, `producto_interes`, `nota`,
+      `creado_por`, `creado_en`, `seguimiento_fecha`, `seguimiento_estado`,
+      `cierre_motivo`, `cierre_venta_id`, `cerrado_por`, `cerrado_en`) — migración
+      `crear_tabla_interacciones`
+- [x] RLS habilitado, políticas `select`/`insert`/`update` para `authenticated` (mismo
+      patrón abierto que `clientes`/`productos` — "todos ven todo", sin `delete`)
+- [x] Trigger `trg_interacciones_set_auditoria` — fuerza `creado_por`/`cerrado_por`/
+      `cerrado_en` desde `current_usuario_id()` en vez de confiar en lo que mande el
+      cliente (no se usó una función RPC porque esta tabla no mueve dinero ni stock,
+      sigue el patrón de escritura directa de `clientes`); también valida que
+      `cierre_venta_id`, si se manda, pertenezca al mismo cliente de la interacción
+- [x] Verificado: insert sin sesión autenticada rechazado con `PERMISO_DENEGADO` (mismo
+      patrón de verificación fail-closed que el resto del proyecto); `get_advisors` no
+      encontró advertencias nuevas sobre `interacciones` (las que salieron son
+      preexistentes, de funciones RPC ya conocidas)
+**Progreso — interfaz (2026-08-09):**
+
+- [x] Ficha de cliente (`#ficha-panel`) — tarjeta (nombre/teléfono/saldo/WhatsApp/
+      Registrar contacto/Editar), próxima acción fija con Compró/No quiso/Posponer,
+      timeline combinado con pestañas Todo/Compras/Contactos/Seguimientos. Tocar un
+      cliente en la lista ahora abre la ficha en vez de ir directo a editar (editar
+      quedó dentro de la ficha, botón ✏️)
+- [x] Bottom sheet "Registrar contacto" (`#contacto-sheet`) — tipo preseleccionado en
+      "Preguntó", seguimiento preseleccionado "en 3 días", aviso suave si ya hay un
+      seguimiento pendiente del mismo cliente (no bloqueante)
+- [x] Pantalla Seguimientos (`#seguimientos-panel`) — agrupada Vencidos/Para hoy/
+      Próximos + "Estancados" (>30 días) colapsado aparte; acciones rápidas inline
+      (WhatsApp/Compró/Posponer) sin abrir la ficha
+- [x] Banner de seguimientos en Inicio (`actualizarBannerSeguimientos()`, llamado desde
+      `loadDashboard()`) + botón de acceso rápido "Seguimientos"
+- [x] Clientes: chips de filtro (Todos/Por seguir/Con saldo/Inactivos) + badges por
+      estado (vencido/hoy/inactivo/saldo/al día) en `loadClientes()`/`renderClientesList()`
+- [x] Sugerencia de interés (17.8) conectada en `saveProducto()` — solo al crear
+      producto nuevo, búsqueda `ilike` de la primera palabra del nombre
+- [x] `version.js` → `vf-v23`
+
+**Recortes de alcance deliberados en esta primera versión** (documentados para que no
+se lean como bugs si Luis los nota):
+
+- **"Compró" no ofrece vincular una venta específica todavía** — el vínculo opcional
+  con `cierre_venta_id` existe en el esquema (17.2), pero la UI de v1 cierra sin pedir
+  cuál venta; se puede agregar un selector de ventas recientes del cliente después.
+- **Confirmar/posponer usan `confirm()`/`prompt()` nativos del navegador**, no sheets
+  a medida — reduce superficie de UI nueva; se puede pulir visualmente más adelante.
+- **No hay forma de registrar un contacto de alguien sin ficha abierta** (ej. un acceso
+  directo "Contacto" en Inicio con buscador) — hay que crear al cliente primero
+  (flujo ya existente) y luego abrir su ficha. Evita tener que construir un buscador +
+  alta rápida de cliente a medio flujo.
+- El timeline no muestra todavía quién registró/cerró cada contacto (`creado_por`/
+  `cerrado_por` ya se guardan en la base, solo falta mostrarlos).
+
+**Verificado (2026-08-09), sin sesión real (mismo límite que tickets 21/22):**
+navegación forzando `#view-main` activo sin login: los 3 paneles nuevos existen y
+abren/cierran correctamente: la ficha, el sheet de contacto y Seguimientos; los chips
+de Clientes filtran y muestran conteos; `loadClientes()`/`cargarSeguimientos()`
+completan y degradan bien a "vacío" (esperado, RLS bloquea a `anon`); los tokens CSS
+nuevos (banner, tarjeta de ficha, próxima acción) resuelven a los colores café
+correctos; sin errores de consola en ningún punto. Un `SyntaxError` por una constante
+`fechaCortaFmt` duplicada (colisión con una ya existente en Reportes) se encontró y
+corrigió durante esta misma verificación, antes de dar el ticket por listo.
+
+**No verificado — requiere tu sesión real:** registrar un contacto de verdad, cerrar un
+seguimiento (Compró/No quiso), posponerlo, y confirmar que el banner/badges de
+Clientes reflejan datos reales. Es el mismo tipo de pendiente que quedó en el ticket 17
+para las funciones admin-only — no se puede probar el camino de éxito sin una cuenta
+real conectada.
 
 **Estado:** no iniciado — siguiente paso: actualizar `SPEC.md` con las reglas de negocio
 del módulo CRM antes de tocar esquema/código.

@@ -335,6 +335,7 @@ async function loadDashboard() {
 
   renderDashboardStats(ventasHoy || [], abonosHoy || []);
   renderDashboardSaldos(clientesSaldo || []);
+  actualizarBannerSeguimientos();
 }
 
 function renderDashboardStats(ventasHoy, abonosHoy) {
@@ -380,41 +381,116 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+let clientesCache = [];
+let clientesFiltroActual = 'todos';
+
 async function loadClientes() {
-  const { data, error } = await supabase
-    .from('clientes')
-    .select('id, nombre, telefono, saldo_pendiente')
-    .order('nombre');
+  const [{ data: clientes, error }, { data: ventas }, { data: segs }] = await Promise.all([
+    supabase.from('clientes').select('id, nombre, telefono, saldo_pendiente').order('nombre'),
+    supabase.from('ventas').select('cliente_id, creado_en')
+      .eq('anulado', false).not('cliente_id', 'is', null).order('creado_en', { ascending: false }),
+    supabase.from('interacciones').select('cliente_id, seguimiento_fecha')
+      .eq('seguimiento_estado', 'pendiente').order('seguimiento_fecha', { ascending: true }),
+  ]);
 
   if (error) {
     toast('No se pudo cargar la lista de clientes.', 'error');
     return;
   }
 
-  renderClientesList(data || []);
+  const ultimaVentaPorCliente = new Map();
+  (ventas || []).forEach((v) => {
+    if (!ultimaVentaPorCliente.has(v.cliente_id)) ultimaVentaPorCliente.set(v.cliente_id, v.creado_en);
+  });
+
+  const seguimientoPorCliente = new Map();
+  (segs || []).forEach((s) => {
+    if (!seguimientoPorCliente.has(s.cliente_id)) seguimientoPorCliente.set(s.cliente_id, s.seguimiento_fecha);
+  });
+
+  clientesCache = (clientes || []).map((c) => {
+    const ultimaVenta = ultimaVentaPorCliente.get(c.id) || null;
+    const diasSinComprar = ultimaVenta ? Math.round((Date.now() - new Date(ultimaVenta)) / 86400000) : null;
+    return {
+      ...c,
+      inactivo: diasSinComprar === null || diasSinComprar >= DIAS_INACTIVO,
+      diasSinComprar,
+      seguimientoFecha: seguimientoPorCliente.get(c.id) || null,
+    };
+  });
+
+  renderClientesFiltros();
+  renderClientesList();
 }
 
-function renderClientesList(clientes) {
+function renderClientesFiltros() {
+  const cont = document.getElementById('clientes-filtros');
+  cont.innerHTML = '';
+  const porSeguir = clientesCache.filter((c) => c.seguimientoFecha).length;
+  const conSaldo = clientesCache.filter((c) => Number(c.saldo_pendiente) > 0).length;
+  const inactivos = clientesCache.filter((c) => c.inactivo).length;
+  const opciones = [
+    { value: 'todos', label: `Todos (${clientesCache.length})` },
+    { value: 'seguir', label: `Por seguir (${porSeguir})` },
+    { value: 'saldo', label: `Con saldo (${conSaldo})` },
+    { value: 'inactivos', label: `Inactivos (${inactivos})` },
+  ];
+  opciones.forEach(({ value, label }) => {
+    const btn = document.createElement('button');
+    btn.className = 'chip' + (value === clientesFiltroActual ? ' active' : '');
+    btn.textContent = label;
+    btn.addEventListener('click', () => {
+      clientesFiltroActual = value;
+      renderClientesFiltros();
+      renderClientesList();
+    });
+    cont.appendChild(btn);
+  });
+}
+
+function renderClientesList() {
   const list = document.getElementById('clientes-list');
   const empty = document.getElementById('clientes-empty');
 
-  list.innerHTML = '';
-  empty.style.display = clientes.length === 0 ? 'block' : 'none';
+  const filtrados = clientesCache.filter((c) => {
+    if (clientesFiltroActual === 'seguir') return !!c.seguimientoFecha;
+    if (clientesFiltroActual === 'saldo') return Number(c.saldo_pendiente) > 0;
+    if (clientesFiltroActual === 'inactivos') return c.inactivo;
+    return true;
+  });
 
-  clientes.forEach((cliente) => {
+  list.innerHTML = '';
+  empty.style.display = filtrados.length === 0 ? 'block' : 'none';
+
+  filtrados.forEach((cliente) => {
     const saldo = Number(cliente.saldo_pendiente) || 0;
     const item = document.createElement('div');
     item.className = 'list-item';
+
+    let badge;
+    if (cliente.seguimientoFecha) {
+      const dias = diasEntre(cliente.seguimientoFecha);
+      badge = dias > 0
+        ? `<span class="li-badge vencido">Vencido ${dias}d</span>`
+        : dias === 0
+          ? `<span class="li-badge hoy">Seguir hoy</span>`
+          : `<span class="li-badge al-dia">Seguir ${fechaDiaMesFmt.format(new Date(cliente.seguimientoFecha + 'T00:00:00'))}</span>`;
+    } else if (saldo > 0) {
+      badge = `<span class="li-badge pendiente">${money.format(saldo)}</span>`;
+    } else if (cliente.inactivo) {
+      badge = `<span class="li-badge inactivo">Inactivo${cliente.diasSinComprar !== null ? ' ' + cliente.diasSinComprar + 'd' : ''}</span>`;
+    } else {
+      badge = `<span class="li-badge al-dia">Al día</span>`;
+    }
+
     item.innerHTML = `
       <div class="li-main">
         <div class="li-title">${escapeHtml(cliente.nombre)}</div>
         <div class="li-sub">${cliente.telefono ? escapeHtml(cliente.telefono) : 'Sin teléfono'}</div>
       </div>
-      <div class="li-badge ${saldo > 0 ? 'pendiente' : 'al-dia'}">
-        ${saldo > 0 ? money.format(saldo) : 'Al día'}
-      </div>
+      ${badge}
     `;
-    item.addEventListener('click', () => openClienteForm(cliente));
+    item.addEventListener('click', () => abrirFicha(cliente));
     list.appendChild(item);
   });
 }
@@ -472,6 +548,9 @@ async function saveCliente() {
     closeClienteForm();
     toast(clienteEditId ? 'Cliente actualizado.' : 'Cliente agregado.');
     loadClientes();
+    if (fichaClienteActual && clienteEditId === fichaClienteActual.id) {
+      cargarFicha();
+    }
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = 'Guardar';
@@ -482,6 +561,566 @@ function initClientes() {
   document.getElementById('fab-nuevo-cliente').addEventListener('click', () => openClienteForm());
   document.getElementById('cliente-cancelar').addEventListener('click', closeClienteForm);
   document.getElementById('cliente-guardar').addEventListener('click', saveCliente);
+}
+
+// ---------- CRM: contactos y seguimientos (ticket 23, SPEC.md sección 17) ----------
+
+const DIAS_SEGUIMIENTO_DEFAULT = 3;
+const DIAS_INACTIVO = 45;
+const DIAS_ESTANCADO = 30;
+
+const fechaDiaMesFmt = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short' });
+
+function diasEntre(fechaISO) {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const f = new Date(fechaISO + 'T00:00:00');
+  return Math.round((hoy - f) / 86400000);
+}
+
+function abrirWhatsAppCliente(telefono) {
+  let limpio = String(telefono).replace(/\D/g, '');
+  if (limpio.length === 10) limpio = '52' + limpio;
+  window.open(`https://wa.me/${limpio}`, '_blank');
+}
+
+async function cerrarSeguimiento(interaccionId, motivo) {
+  if (!assertOnline()) return;
+  const { error } = await supabase
+    .from('interacciones')
+    .update({ seguimiento_estado: 'cerrado', cierre_motivo: motivo })
+    .eq('id', interaccionId);
+
+  if (error) {
+    toast('No se pudo actualizar el seguimiento.', 'error');
+    return;
+  }
+  toast('Seguimiento actualizado.');
+  await refrescarVistasSeguimiento();
+}
+
+async function posponerSeguimiento(interaccionId, dias) {
+  if (!assertOnline()) return;
+  const nuevaFecha = new Date();
+  nuevaFecha.setDate(nuevaFecha.getDate() + dias);
+  const { error } = await supabase
+    .from('interacciones')
+    .update({ seguimiento_fecha: nuevaFecha.toISOString().slice(0, 10) })
+    .eq('id', interaccionId);
+
+  if (error) {
+    toast('No se pudo posponer.', 'error');
+    return;
+  }
+  toast('Seguimiento pospuesto.');
+  await refrescarVistasSeguimiento();
+}
+
+async function refrescarVistasSeguimiento() {
+  if (fichaClienteActual && document.getElementById('ficha-panel').classList.contains('show')) {
+    await cargarFicha();
+  }
+  if (document.getElementById('seguimientos-panel').classList.contains('show')) {
+    await cargarSeguimientos();
+  }
+  actualizarBannerSeguimientos();
+}
+
+function confirmarCierre(interaccionId, motivo) {
+  const mensaje = motivo === 'compro' ? '¿Marcar como comprado?' : '¿Marcar como que no quiso?';
+  if (confirm(mensaje)) cerrarSeguimiento(interaccionId, motivo);
+}
+
+function confirmarPosponer(interaccionId) {
+  const diasStr = prompt('¿Posponer cuántos días?', String(DIAS_SEGUIMIENTO_DEFAULT));
+  if (diasStr === null) return;
+  const dias = parseInt(diasStr, 10);
+  if (!Number.isFinite(dias) || dias <= 0) {
+    toast('Número de días inválido.', 'error');
+    return;
+  }
+  posponerSeguimiento(interaccionId, dias);
+}
+
+// ---- Ficha de cliente ----
+
+let fichaClienteActual = null;
+let fichaVentas = [];
+let fichaAbonos = [];
+let fichaInteracciones = [];
+let fichaTimelineFiltro = 'todo';
+
+async function abrirFicha(cliente) {
+  fichaClienteActual = cliente;
+  fichaTimelineFiltro = 'todo';
+  document.getElementById('ficha-panel').classList.add('show');
+  await cargarFicha();
+}
+
+function cerrarFicha() {
+  document.getElementById('ficha-panel').classList.remove('show');
+  fichaClienteActual = null;
+}
+
+async function cargarFicha() {
+  const clienteId = fichaClienteActual.id;
+  const [
+    { data: cliente, error: clienteError },
+    { data: ventas, error: ventasError },
+    { data: abonos, error: abonosError },
+    { data: interacciones, error: interaccionesError },
+  ] = await Promise.all([
+    supabase.from('clientes').select('id, nombre, telefono, saldo_pendiente').eq('id', clienteId).single(),
+    supabase.from('ventas').select('id, folio, tipo, total, creado_en, anulado')
+      .eq('cliente_id', clienteId).order('creado_en', { ascending: false }),
+    supabase.from('abonos').select('id, folio, monto, creado_en, anulado')
+      .eq('cliente_id', clienteId).order('creado_en', { ascending: false }),
+    supabase.from('interacciones')
+      .select('id, tipo, producto_interes, nota, creado_en, seguimiento_fecha, seguimiento_estado, cierre_motivo')
+      .eq('cliente_id', clienteId).order('creado_en', { ascending: false }),
+  ]);
+
+  if (clienteError || ventasError || abonosError || interaccionesError) {
+    toast('No se pudo cargar la ficha del cliente.', 'error');
+  }
+
+  if (cliente) fichaClienteActual = cliente;
+  document.getElementById('ficha-titulo').textContent = fichaClienteActual.nombre;
+  fichaVentas = ventas || [];
+  fichaAbonos = abonos || [];
+  fichaInteracciones = interacciones || [];
+
+  renderFichaCard();
+  renderFichaProxima();
+  renderFichaTabs();
+  renderFichaTimeline();
+}
+
+function renderFichaCard() {
+  const c = fichaClienteActual;
+  const saldo = Number(c.saldo_pendiente) || 0;
+  const sub = saldo > 0
+    ? `${c.telefono ? escapeHtml(c.telefono) + ' · ' : ''}Debe <span class="ficha-deuda">${money.format(saldo)}</span>`
+    : (c.telefono ? escapeHtml(c.telefono) : 'Sin teléfono');
+
+  document.getElementById('ficha-card').innerHTML = `
+    <div class="ficha-nombre">${escapeHtml(c.nombre)}</div>
+    <div class="ficha-sub">${sub}</div>
+    <div class="ficha-acciones">
+      ${c.telefono ? `<button type="button" class="ficha-accion ficha-accion-wa" id="ficha-btn-whatsapp">💬 WhatsApp</button>` : ''}
+      <button type="button" class="ficha-accion" id="ficha-btn-contacto">➕ Contacto</button>
+    </div>
+  `;
+  const btnWa = document.getElementById('ficha-btn-whatsapp');
+  if (btnWa) btnWa.addEventListener('click', () => abrirWhatsAppCliente(c.telefono));
+  document.getElementById('ficha-btn-contacto').addEventListener('click', abrirContactoSheet);
+}
+
+function renderFichaProxima() {
+  const pendiente = fichaInteracciones
+    .filter((i) => i.seguimiento_estado === 'pendiente')
+    .sort((a, b) => a.seguimiento_fecha.localeCompare(b.seguimiento_fecha))[0];
+
+  const el = document.getElementById('ficha-proxima');
+  if (!pendiente) {
+    el.style.display = 'none';
+    return;
+  }
+
+  const dias = diasEntre(pendiente.seguimiento_fecha);
+  el.style.display = 'block';
+  el.classList.toggle('proxima-futura', dias < 0);
+
+  document.getElementById('ficha-proxima-etiqueta').textContent = dias > 0
+    ? `⏰ Vencido hace ${dias} día${dias === 1 ? '' : 's'}`
+    : dias === 0
+      ? '⏰ Seguimiento para hoy'
+      : `⏰ Seguimiento programado — ${fechaDiaMesFmt.format(new Date(pendiente.seguimiento_fecha + 'T00:00:00'))}`;
+
+  const tipoLabel = pendiente.tipo === 'pregunto' ? 'Preguntó por algo'
+    : pendiente.tipo === 'oferta' ? 'Se le ofreció algo' : 'Contacto registrado';
+  const partes = [pendiente.producto_interes, pendiente.nota].filter(Boolean);
+  document.getElementById('ficha-proxima-texto').textContent = partes.length ? partes.join(' — ') : tipoLabel;
+
+  document.getElementById('ficha-proxima-comprar').onclick = () => confirmarCierre(pendiente.id, 'compro');
+  document.getElementById('ficha-proxima-no-quiso').onclick = () => confirmarCierre(pendiente.id, 'no_quiso');
+  document.getElementById('ficha-proxima-posponer').onclick = () => confirmarPosponer(pendiente.id);
+}
+
+function renderFichaTabs() {
+  const cont = document.getElementById('ficha-tabs');
+  cont.innerHTML = '';
+  const opciones = [
+    { value: 'todo', label: 'Todo' },
+    { value: 'compras', label: 'Compras' },
+    { value: 'contactos', label: 'Contactos' },
+    { value: 'seguimientos', label: 'Seguimientos' },
+  ];
+  opciones.forEach(({ value, label }) => {
+    const btn = document.createElement('button');
+    btn.className = 'chip' + (value === fichaTimelineFiltro ? ' active' : '');
+    btn.textContent = label;
+    btn.addEventListener('click', () => {
+      fichaTimelineFiltro = value;
+      renderFichaTabs();
+      renderFichaTimeline();
+    });
+    cont.appendChild(btn);
+  });
+}
+
+function renderFichaTimeline() {
+  const eventos = [];
+
+  fichaVentas.forEach((v) => eventos.push({
+    tipo: 'venta',
+    fecha: new Date(v.creado_en),
+    titulo: `🛒 ${v.anulado ? '(anulada) ' : ''}Compró ${money.format(Number(v.total))}`,
+    sub: `${v.tipo === 'credito' ? 'Crédito' : 'Contado'} · ${v.folio} · ${fechaFmt.format(new Date(v.creado_en))}`,
+  }));
+
+  fichaAbonos.forEach((a) => eventos.push({
+    tipo: 'abono',
+    fecha: new Date(a.creado_en),
+    titulo: `💵 ${a.anulado ? '(anulado) ' : ''}Abonó ${money.format(Number(a.monto))}`,
+    sub: `${a.folio} · ${fechaFmt.format(new Date(a.creado_en))}`,
+  }));
+
+  fichaInteracciones.forEach((i) => {
+    const tipoLabel = i.tipo === 'pregunto' ? 'Preguntó' : i.tipo === 'oferta' ? 'Se le ofreció' : 'Contacto';
+    let segTag = '';
+    if (i.seguimiento_estado === 'pendiente') {
+      const dias = diasEntre(i.seguimiento_fecha);
+      segTag = dias > 0 ? ` · seguimiento vencido hace ${dias}d`
+        : dias === 0 ? ' · seguimiento hoy' : ' · seguimiento programado';
+    } else if (i.seguimiento_estado === 'cerrado') {
+      segTag = i.cierre_motivo === 'compro' ? ' · cerró: compró' : ' · cerró: no quiso';
+    }
+    eventos.push({
+      tipo: 'contacto',
+      conSeguimiento: !!i.seguimiento_estado,
+      fecha: new Date(i.creado_en),
+      titulo: `💬 ${tipoLabel}${i.producto_interes ? ': ' + i.producto_interes : ''}`,
+      sub: `${i.nota ? i.nota + ' · ' : ''}${fechaFmt.format(new Date(i.creado_en))}${segTag}`,
+    });
+  });
+
+  eventos.sort((a, b) => b.fecha - a.fecha);
+
+  const filtrados = eventos.filter((e) => {
+    if (fichaTimelineFiltro === 'compras') return e.tipo === 'venta';
+    if (fichaTimelineFiltro === 'contactos') return e.tipo === 'contacto';
+    if (fichaTimelineFiltro === 'seguimientos') return e.tipo === 'contacto' && e.conSeguimiento;
+    return true;
+  });
+
+  const cont = document.getElementById('ficha-timeline');
+  const empty = document.getElementById('ficha-timeline-empty');
+  cont.innerHTML = '';
+  empty.style.display = filtrados.length === 0 ? 'block' : 'none';
+
+  filtrados.forEach((ev) => {
+    const item = document.createElement('div');
+    item.className = 'list-item';
+    item.innerHTML = `
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(ev.titulo)}</div>
+        <div class="li-sub">${escapeHtml(ev.sub)}</div>
+      </div>
+    `;
+    cont.appendChild(item);
+  });
+}
+
+function initFicha() {
+  document.getElementById('ficha-cerrar').addEventListener('click', cerrarFicha);
+  document.getElementById('ficha-editar').addEventListener('click', () => openClienteForm(fichaClienteActual));
+}
+
+// ---- Registrar contacto (bottom sheet) ----
+
+let contactoSeguimientoModo = '3dias';
+
+function abrirContactoSheet() {
+  document.querySelectorAll('#contacto-tipo-toggle .toggle-btn').forEach((b) =>
+    b.classList.toggle('active', b.dataset.tipo === 'pregunto'));
+  document.getElementById('contacto-producto').value = '';
+  document.getElementById('contacto-nota').value = '';
+  document.querySelectorAll('#contacto-seguimiento-toggle .toggle-btn').forEach((b) =>
+    b.classList.toggle('active', b.dataset.seg === '3dias'));
+  contactoSeguimientoModo = '3dias';
+  document.getElementById('contacto-fecha-row').style.display = 'none';
+  document.getElementById('contacto-fecha').value = '';
+  document.getElementById('contacto-form-error').textContent = '';
+  document.getElementById('contacto-sheet').classList.add('show');
+}
+
+function cerrarContactoSheet() {
+  document.getElementById('contacto-sheet').classList.remove('show');
+}
+
+async function guardarContacto() {
+  if (!assertOnline()) return;
+  if (!fichaClienteActual) return;
+
+  const tipo = document.querySelector('#contacto-tipo-toggle .toggle-btn.active').dataset.tipo;
+  const producto = document.getElementById('contacto-producto').value.trim();
+  const nota = document.getElementById('contacto-nota').value.trim();
+  const errorEl = document.getElementById('contacto-form-error');
+  errorEl.textContent = '';
+
+  let seguimientoFecha = null;
+  if (contactoSeguimientoModo === '3dias') {
+    const f = new Date();
+    f.setDate(f.getDate() + DIAS_SEGUIMIENTO_DEFAULT);
+    seguimientoFecha = f.toISOString().slice(0, 10);
+  } else if (contactoSeguimientoModo === 'fecha') {
+    seguimientoFecha = document.getElementById('contacto-fecha').value;
+    if (!seguimientoFecha) {
+      errorEl.textContent = 'Elige una fecha de seguimiento.';
+      return;
+    }
+  }
+
+  if (seguimientoFecha) {
+    const yaPendiente = fichaInteracciones.find((i) => i.seguimiento_estado === 'pendiente');
+    if (yaPendiente) {
+      const seguir = confirm(
+        `Ya tiene un seguimiento pendiente del ${fechaDiaMesFmt.format(new Date(yaPendiente.seguimiento_fecha + 'T00:00:00'))}. ¿De todas formas crear uno nuevo?`
+      );
+      if (!seguir) return;
+    }
+  }
+
+  const btn = document.getElementById('contacto-guardar');
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+
+  try {
+    const payload = {
+      cliente_id: fichaClienteActual.id,
+      tipo,
+      producto_interes: producto || null,
+      nota: nota || null,
+      seguimiento_fecha: seguimientoFecha,
+      seguimiento_estado: seguimientoFecha ? 'pendiente' : null,
+    };
+    const { error } = await supabase.from('interacciones').insert(payload);
+
+    if (error) {
+      errorEl.textContent = 'No se pudo guardar. Intenta de nuevo.';
+      return;
+    }
+
+    cerrarContactoSheet();
+    toast('Contacto registrado.');
+    await cargarFicha();
+    actualizarBannerSeguimientos();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Guardar';
+  }
+}
+
+function initContacto() {
+  document.querySelectorAll('#contacto-tipo-toggle .toggle-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#contacto-tipo-toggle .toggle-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+  document.querySelectorAll('#contacto-seguimiento-toggle .toggle-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#contacto-seguimiento-toggle .toggle-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      contactoSeguimientoModo = btn.dataset.seg;
+      document.getElementById('contacto-fecha-row').style.display = contactoSeguimientoModo === 'fecha' ? 'block' : 'none';
+    });
+  });
+  document.getElementById('contacto-cancelar').addEventListener('click', cerrarContactoSheet);
+  document.getElementById('contacto-guardar').addEventListener('click', guardarContacto);
+}
+
+// ---- Pantalla Seguimientos ----
+
+let seguimientosCache = [];
+
+async function cargarSeguimientos() {
+  const { data, error } = await supabase
+    .from('interacciones')
+    .select('id, cliente_id, tipo, producto_interes, seguimiento_fecha, cliente:clientes(nombre, telefono)')
+    .eq('seguimiento_estado', 'pendiente')
+    .order('seguimiento_fecha', { ascending: true });
+
+  if (error) {
+    toast('No se pudo cargar Seguimientos.', 'error');
+    seguimientosCache = [];
+  } else {
+    seguimientosCache = data || [];
+  }
+  renderSeguimientos();
+}
+
+function renderSeguimientos() {
+  const cont = document.getElementById('seguimientos-list');
+  const empty = document.getElementById('seguimientos-empty');
+  cont.innerHTML = '';
+  empty.style.display = seguimientosCache.length === 0 ? 'block' : 'none';
+
+  const vencidos = [], estancados = [], hoy = [], proximos = [];
+  seguimientosCache.forEach((s) => {
+    const dias = diasEntre(s.seguimiento_fecha);
+    if (dias > DIAS_ESTANCADO) estancados.push(s);
+    else if (dias > 0) vencidos.push(s);
+    else if (dias === 0) hoy.push(s);
+    else proximos.push(s);
+  });
+
+  const grupo = (titulo, claseExtra, items) => {
+    if (items.length === 0) return;
+    const h = document.createElement('div');
+    h.className = 'seguimientos-grupo-titulo' + (claseExtra ? ' ' + claseExtra : '');
+    h.textContent = titulo;
+    cont.appendChild(h);
+    items.forEach((s) => cont.appendChild(renderSeguimientoItem(s)));
+  };
+
+  grupo('Vencidos', 'grupo-vencidos', vencidos);
+  grupo('Para hoy', 'grupo-hoy', hoy);
+  grupo('Próximos', '', proximos);
+
+  if (estancados.length > 0) {
+    const det = document.createElement('details');
+    det.className = 'seguimientos-estancados';
+    const sum = document.createElement('summary');
+    sum.textContent = `Estancados (${estancados.length})`;
+    det.appendChild(sum);
+    estancados.forEach((s) => det.appendChild(renderSeguimientoItem(s)));
+    cont.appendChild(det);
+  }
+}
+
+function renderSeguimientoItem(s) {
+  const dias = diasEntre(s.seguimiento_fecha);
+  const badge = dias > 0
+    ? `<span class="li-badge vencido">${dias}d</span>`
+    : dias === 0
+      ? `<span class="li-badge hoy">Hoy</span>`
+      : `<span class="li-badge al-dia">${fechaDiaMesFmt.format(new Date(s.seguimiento_fecha + 'T00:00:00'))}</span>`;
+
+  const wrap = document.createElement('div');
+
+  const item = document.createElement('div');
+  item.className = 'list-item';
+  item.innerHTML = `
+    <div class="li-main">
+      <div class="li-title">${escapeHtml(s.cliente ? s.cliente.nombre : 'Cliente')}</div>
+      <div class="li-sub">${escapeHtml(s.producto_interes || (s.tipo === 'pregunto' ? 'Preguntó por algo' : s.tipo === 'oferta' ? 'Se le ofreció algo' : 'Contacto'))}</div>
+    </div>
+    ${badge}
+  `;
+  item.addEventListener('click', () => {
+    cerrarSeguimientosPanel();
+    abrirFicha({ id: s.cliente_id, nombre: s.cliente ? s.cliente.nombre : '' });
+  });
+  wrap.appendChild(item);
+
+  const acc = document.createElement('div');
+  acc.className = 'seguimiento-acciones';
+  if (s.cliente && s.cliente.telefono) {
+    const btnWa = document.createElement('button');
+    btnWa.type = 'button';
+    btnWa.className = 'acc-wa';
+    btnWa.textContent = '💬 WhatsApp';
+    btnWa.addEventListener('click', (e) => { e.stopPropagation(); abrirWhatsAppCliente(s.cliente.telefono); });
+    acc.appendChild(btnWa);
+  }
+  const btnOk = document.createElement('button');
+  btnOk.type = 'button';
+  btnOk.textContent = '✔ Compró';
+  btnOk.addEventListener('click', (e) => { e.stopPropagation(); confirmarCierre(s.id, 'compro'); });
+  acc.appendChild(btnOk);
+
+  const btnPosponer = document.createElement('button');
+  btnPosponer.type = 'button';
+  btnPosponer.textContent = '📅 Posponer';
+  btnPosponer.addEventListener('click', (e) => { e.stopPropagation(); confirmarPosponer(s.id); });
+  acc.appendChild(btnPosponer);
+
+  wrap.appendChild(acc);
+  return wrap;
+}
+
+async function abrirSeguimientosPanel() {
+  document.getElementById('seguimientos-panel').classList.add('show');
+  await cargarSeguimientos();
+}
+
+function cerrarSeguimientosPanel() {
+  document.getElementById('seguimientos-panel').classList.remove('show');
+}
+
+function initSeguimientos() {
+  document.getElementById('btn-seguimientos').addEventListener('click', abrirSeguimientosPanel);
+  document.getElementById('dash-banner-btn').addEventListener('click', abrirSeguimientosPanel);
+  document.getElementById('seguimientos-cerrar').addEventListener('click', cerrarSeguimientosPanel);
+}
+
+// ---- Banner de seguimientos en Inicio ----
+
+async function actualizarBannerSeguimientos() {
+  const { data, error } = await supabase
+    .from('interacciones')
+    .select('seguimiento_fecha')
+    .eq('seguimiento_estado', 'pendiente');
+
+  const banner = document.getElementById('dash-seguimientos-banner');
+
+  if (error || !data || data.length === 0) {
+    banner.style.display = 'none';
+    return;
+  }
+
+  let vencidos = 0, hoy = 0;
+  data.forEach((s) => {
+    const dias = diasEntre(s.seguimiento_fecha);
+    if (dias > 0) vencidos++;
+    else if (dias === 0) hoy++;
+  });
+
+  if (vencidos === 0 && hoy === 0) {
+    banner.style.display = 'none';
+    return;
+  }
+
+  const partes = [];
+  if (hoy > 0) partes.push(`${hoy} seguimiento${hoy === 1 ? '' : 's'} para hoy`);
+  if (vencidos > 0) partes.push(`${vencidos} vencido${vencidos === 1 ? '' : 's'}`);
+
+  document.getElementById('dash-banner-texto').textContent = partes.join(' · ');
+  document.getElementById('dash-banner-sub').textContent =
+    vencidos > 0 ? 'Hay clientes esperando respuesta' : 'Toca para revisarlos';
+  banner.style.display = 'flex';
+}
+
+// ---- Sugerencia de interés al dar de alta un producto (v1 simplificado, SPEC 17.8) ----
+
+async function sugerirInteresadosPorProducto(nombreProducto) {
+  const palabra = nombreProducto.trim().split(/\s+/)[0];
+  if (!palabra || palabra.length < 3) return;
+
+  const { data, error } = await supabase
+    .from('interacciones')
+    .select('id, cliente:clientes(nombre)')
+    .eq('seguimiento_estado', 'pendiente')
+    .ilike('producto_interes', `%${palabra}%`);
+
+  if (error || !data || data.length === 0) return;
+
+  const nombres = data.map((i) => (i.cliente ? i.cliente.nombre : null)).filter(Boolean);
+  if (nombres.length === 0) return;
+  const texto = nombres.length <= 2 ? nombres.join(' y ') : `${nombres.length} clientes`;
+  toast(`${texto} preguntaron algo parecido — revisa Seguimientos.`);
 }
 
 // ---------- Inventario ----------
@@ -820,9 +1459,11 @@ async function saveProducto() {
       }
     }
 
+    const esNuevo = !productoEditId;
     closeProductoForm();
-    toast(productoEditId ? 'Producto actualizado.' : 'Producto agregado.');
+    toast(esNuevo ? 'Producto agregado.' : 'Producto actualizado.');
     loadProductos();
+    if (esNuevo) sugerirInteresadosPorProducto(nombre);
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = 'Guardar';
@@ -2707,6 +3348,9 @@ function init() {
   document.getElementById('login-buscar-actualizacion').addEventListener('click', buscarActualizacion);
   initNav();
   initClientes();
+  initFicha();
+  initContacto();
+  initSeguimientos();
   initInventario();
   initVentas();
   initAbonos();
