@@ -158,12 +158,22 @@ punta.
 
 **Pendiente:** ver ticket 17 (Fase D) arriba. Además de los tickets 01-16, también están
 cerrados 18 (ver/reenviar recibo desde Historial), 19 (buscador de cliente en Nueva
-venta/Nuevo abono), 20 (desglose de stock por almacén en Inventario) y 21 (identidad
-visual café/crema — recoloreo, pendiente que Luis confirme visualmente en producción con
-sesión iniciada). **En curso:** evolución hacia CRM familiar — ticket 22 (layout de
-escritorio con sidebar) y ticket 23 (ficha de cliente + seguimientos) aún no iniciados,
-ver `TICKETS.md` y
-[docs/superpowers/specs/2026-08-09-design-system-crm-familiar.md](docs/superpowers/specs/2026-08-09-design-system-crm-familiar.md).
+venta/Nuevo abono), 20 (desglose de stock por almacén en Inventario), 21 (identidad
+visual café/crema — recoloreo, confirmado por Luis en producción 2026-08-09) y 22
+(layout de escritorio con sidebar, confirmado por Luis en producción 2026-08-09). Ver
+[docs/superpowers/specs/2026-08-09-design-system-crm-familiar.md](docs/superpowers/specs/2026-08-09-design-system-crm-familiar.md)
+para el diseño completo de ambos.
+
+**En progreso: ticket 23 — módulo CRM** (ficha de cliente, seguimientos, registro de
+contacto, sugerencia de interés al dar de alta producto). Reglas de negocio y
+evaluación de flujo en `SPEC.md` sección 17. Esquema de Supabase (tabla
+`interacciones` + RLS + trigger de auditoría) e interfaz completa ya construidos y
+subidos a producción (2026-08-09, commit `4e0e740`) — **pendiente que Luis confirme el
+camino de éxito con su sesión real**: registrar un contacto, cerrarlo (Compró/No
+quiso) y posponerlo. Hasta esa confirmación, el ticket sigue abierto. Detalle completo,
+incluyendo los recortes de alcance deliberados de esta primera versión (sin selector de
+venta al cerrar "Compró", confirm/prompt nativos en vez de sheets a medida, sin alta
+rápida de contacto para no-clientes), en `TICKETS.md` ticket 23.
 
 Los usuarios y roles fijos descritos abajo ("Usuarios y roles") dejaron de ser fijos con
 el ticket 12 — ahora son altas/bajas dinámicas desde la app (sección "Mi cuenta"). El
