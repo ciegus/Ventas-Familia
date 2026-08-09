@@ -1,15 +1,16 @@
 :root {
-  --bg: #F2F6F8;
-  --card: #FFFFFF;
-  --text: #12233F;
-  --muted: #6B7A8C;
-  --accent: #14A0A6;
-  --accent-dark: #0B6E76;
-  --accent-light: #4FE0EA;
-  --navy: #12233F;
-  --error: #C0392B;
-  --border: #E1E8ED;
-  --radius: 14px;
+  /* Identidad café/crema "Lima's Sales" (ver docs/superpowers/specs/2026-08-09-design-system-crm-familiar.md) */
+  --bg: #FBF7F0;
+  --card: #FFFDF9;
+  --text: #2E2118;
+  --muted: #6F6258;
+  --accent: #7A5233;
+  --accent-dark: #5C3A21;
+  --accent-light: #C49A73;
+  --navy: #5C3A21;
+  --error: #B85745;
+  --border: #E6D8C8;
+  --radius: 16px;
 }
 
 * { box-sizing: border-box; }
@@ -19,7 +20,7 @@ html, body {
   padding: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -233,7 +234,7 @@ body {
 
 #view-main .topbar .who span {
   font-size: 12px;
-  color: #AFC4D6;
+  color: #E8DACA;
 }
 
 #view-main .topbar .btn-ghost {
@@ -242,6 +243,13 @@ body {
   font-size: 14px;
   color: #fff;
   border-color: rgba(255, 255, 255, 0.3);
+}
+
+.app-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 #view-main .content {
@@ -284,7 +292,7 @@ body {
 .quick-action-icon { font-size: 20px; }
 
 .quick-action-alt {
-  background: linear-gradient(135deg, #1B2A4C, #33507E);
+  background: linear-gradient(135deg, var(--accent), #9A6A43);
 }
 
 /* ---------- Panel fullscreen (Nueva venta, etc.) ---------- */
@@ -549,12 +557,12 @@ body {
 }
 
 .li-badge.al-dia {
-  background: #E3F6EC;
-  color: #1E8A4C;
+  background: #E9EEE1;
+  color: #718355;
 }
 
 .li-badge.pendiente {
-  background: #FDECEA;
+  background: #F5DFDA;
   color: var(--error);
 }
 
@@ -1002,4 +1010,67 @@ body {
 #producto-stock-almacenes-list .list-item,
 #producto-entrada-row {
   margin-top: 4px;
+}
+
+/* ---------- Escritorio / laptop (sidebar) — ver docs/superpowers/specs/2026-08-09-design-system-crm-familiar.md ---------- */
+
+.sidebar-desktop {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .app-body {
+    flex-direction: row;
+  }
+
+  .sidebar-desktop {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--navy);
+    padding: 16px 10px;
+  }
+
+  .sidebar-desktop .nav-btn {
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    color: #E8DACA;
+    font-size: 14px;
+  }
+
+  .sidebar-desktop .nav-btn .icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+
+  .sidebar-desktop .nav-btn.active {
+    background: #9A6A43;
+    color: #fff;
+  }
+
+  .bottom-nav {
+    display: none;
+  }
+
+  .fab {
+    bottom: 24px;
+  }
+
+  #view-main .content {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding-bottom: 24px;
+  }
+
+  .product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
 }

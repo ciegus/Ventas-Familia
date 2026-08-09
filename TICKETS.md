@@ -707,3 +707,104 @@ cambios; sin errores de consola.
 - [x] Desglose por almacén visible en cada tarjeta de la cuadrícula, sin tocarla
 - [x] Se omite la línea si el producto no tiene stock en ningún almacén
 - [x] Versión subida a `vf-v20`
+
+---
+
+## 21 — Identidad visual café/crema (recoloreo) ✅
+
+**Blocked by:** Ninguno
+
+**Qué construye:** primera fase de la evolución hacia CRM familiar (ver ticket 22+) —
+Luis compartió un sistema de diseño completo (paleta café/crema, tipografía Inter,
+componentes, reglas responsive) para adoptar como base visual permanente, confirmado en
+simulación previa. Diseño completo en
+[docs/superpowers/specs/2026-08-09-design-system-crm-familiar.md](docs/superpowers/specs/2026-08-09-design-system-crm-familiar.md);
+decisión de alcance en `SPEC.md` sección 16. Se mantiene el nombre y logo "Lima's Sales"
+— solo cambian colores y tipografía. No incluye el layout de escritorio ni el módulo CRM
+(fases separadas, tickets 22 y 23).
+
+**Estado:** completado — `styles.css` (tokens de `:root`: `--bg`, `--card`, `--text`,
+`--muted`, `--accent`, `--accent-dark`, `--accent-light`, `--navy`, `--error`, `--border`
+recoloreados de teal/navy a café/crema; `--radius` 14px→16px; gradiente de
+`.quick-action-alt` y badges `.li-badge.al-dia`/`.pendiente` hardcodeados actualizados;
+`font-family` de Arial a Inter), `index.html` (`theme-color`, `<link>` a Google Fonts
+Inter), `manifest.json` (`theme_color`/`background_color`), `icon.svg` (gradiente del
+monograma LS de teal/cyan a café). No se tocó `app.js` — no hay colores hardcodeados ahí
+salvo el fondo blanco del recibo capturado para PDF (deliberado, no es parte del tema).
+
+Verificado en `localhost:3000` (servidor estático, sin login real): tokens CSS aplican
+los valores exactos (`--bg` `#FBF7F0`, `--accent-dark` `#5C3A21`), gradiente del botón
+primario `linear-gradient(135deg, #5C3A21, #7A5233)`, color de error `#B85745`, fuente
+Inter cargada (`document.fonts.check('16px Inter')` → `true`), sin errores de consola.
+No se verificó contra producción ni con sesión iniciada (pantallas post-login) — pendiente
+que Luis lo confirme visualmente antes de dar por cerrado el ticket.
+
+- [x] `styles.css` — tokens `:root` + hardcodeados recoloreados a café/crema
+- [x] `index.html` — `theme-color` + fuente Inter
+- [x] `manifest.json` — `theme_color`/`background_color`
+- [x] `icon.svg` — gradiente del monograma LS
+- [x] Verificado en local: tokens, gradiente, color de error, fuente, sin errores de consola
+- [ ] Confirmación visual de Luis en producción (pantallas post-login)
+- [x] Versión subida a `vf-v21`
+
+---
+
+## 22 — Layout de escritorio (sidebar) ✅
+
+**Blocked by:** 21
+
+**Qué construye:** navegación lateral en pantallas ≥1024px (desktop/laptop, sin cambios
+en móvil 320–1023px) — capacidad nueva, hoy la app era solo mobile. Simulado en la
+maqueta de escritorio compartida con Luis.
+
+**Alcance de esta primera versión:** solo las 4 pestañas reales (Inicio / Inventario /
+Clientes / Reportes), igual que el bottom-nav — **no** se agregaron accesos directos a
+Historial/Movimientos/Mi cuenta en el sidebar (esos overlays se siguen abriendo desde los
+botones de Inicio/topbar, sin cambios) para no tocar `app.js` en esta fase y mantener el
+riesgo en cero. Se puede ampliar el sidebar con esos accesos en una iteración posterior
+si Luis lo pide.
+
+**Estado:** completado — `index.html` (nuevo `<div class="app-body">` envolviendo un
+`<nav class="sidebar-desktop">` + el `<div class="content">` existente, entre `.topbar` y
+`.bottom-nav`; los 4 botones del sidebar reusan exactamente las clases `nav-btn` +
+`data-tab` del bottom-nav, así que `switchTab()`/`initNav()` en `app.js` **no se
+modificaron** — los reconocen automáticamente vía `querySelectorAll('.nav-btn')`),
+`styles.css` (`.app-body` flex wrapper transparente en móvil; media query
+`min-width:1024px` con `.sidebar-desktop` visible, `.bottom-nav` oculto, `.content` con
+`max-width` centrado, grid de Inventario con más columnas, FAB reposicionado).
+
+Verificado en `localhost:3000` forzando la vista principal sin login real (para probar
+solo estructura/CSS, sin necesitar sesión): a 1280px el sidebar se muestra
+(`display:flex`, ancho 220px, fondo `#5C3A21`) y el bottom-nav se oculta; a 375px el
+sidebar se oculta y el bottom-nav vuelve a mostrarse igual que antes (sin regresión);
+clic en "Clientes" del sidebar cambia el panel activo y sincroniza el estado activo en
+sidebar y bottom-nav a la vez (mismo `data-tab`); sin errores de consola. **No verificado
+contra producción con sesión real** (dashboard/inventario/reportes cargando datos reales
+en escritorio) — pendiente que Luis lo confirme.
+
+- [x] `index.html` — `.app-body` + `.sidebar-desktop` (4 pestañas, mismas clases que bottom-nav)
+- [x] `styles.css` — media query `min-width:1024px` (sidebar, bottom-nav oculto, content centrado, grid ampliado)
+- [x] `app.js` — sin cambios (reutiliza `switchTab()`/`initNav()` existentes)
+- [x] Verificado en local: desktop (sidebar) y móvil (sin regresión) con y sin JS forzado, sin errores de consola
+- [ ] Confirmación visual de Luis en producción con sesión real
+- [x] Versión subida a `vf-v22`
+
+---
+
+## 23 — CRM: ficha de cliente + seguimientos — pendiente
+
+**Blocked by:** 21 (no depende de 22 — puede construirse antes o después del layout de
+escritorio, ya que ambos son aditivos e independientes entre sí)
+
+**Qué construye:** ficha de cliente (tarjeta + próxima acción fija + timeline con
+pestañas, variante combinada confirmada), tabla `interacciones` (tipo, producto de
+interés en texto libre, nota, seguimiento con fecha y estado), pantalla de Seguimientos,
+banner de alertas en Inicio, y el "match de interés" al dar de alta un producto.
+Diagnóstico completo en la auditoría previa de esta conversación; simulación en
+`docs/superpowers/specs/2026-08-09-design-system-crm-familiar.md` (referencias de UI).
+
+**Decisiones confirmadas:** tipos de contacto "Preguntó por algo / Le ofrecí / Otro",
+seguimiento por default a 3 días, cliente "inactivo" a partir de 45 días sin comprar.
+
+**Estado:** no iniciado — siguiente paso: actualizar `SPEC.md` con las reglas de negocio
+del módulo CRM antes de tocar esquema/código.

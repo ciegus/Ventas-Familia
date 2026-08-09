@@ -4,12 +4,15 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Lima's Sales</title>
-  <meta name="theme-color" content="#12233F" />
+  <meta name="theme-color" content="#5C3A21" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -73,6 +76,25 @@
       </div>
     </div>
 
+    <div class="app-body">
+    <nav class="sidebar-desktop">
+      <button class="nav-btn active" data-tab="inicio">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>
+        Inicio
+      </button>
+      <button class="nav-btn" data-tab="inventario">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
+        Inventario
+      </button>
+      <button class="nav-btn" data-tab="clientes">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5"/><circle cx="17" cy="8" r="2.8"/><path d="M15.5 13.7c2.9.5 5 3 5 6.3"/></svg>
+        Clientes
+      </button>
+      <button class="nav-btn" data-tab="reportes">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"/><path d="M12 20V4"/><path d="M20 20v-7"/></svg>
+        Reportes
+      </button>
+    </nav>
     <div class="content">
       <!-- Inicio -->
       <div id="tab-inicio" class="tab-panel active">
@@ -187,6 +209,7 @@
           No hay ventas registradas en este periodo.
         </p>
       </div>
+    </div>
     </div>
 
     <nav class="bottom-nav">

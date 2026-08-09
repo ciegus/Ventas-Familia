@@ -8,15 +8,22 @@ Empaques). No mezclar contexto de ambos proyectos.
 
 PWA de gestión de ventas para un negocio familiar de reventa al menudeo/menudeo-mayoreo.
 4 usuarios fijos (Papá, Angie, Alexa, Alexis), sin categoría de producto fija — se revende
-lo que se vaya consiguiendo. Marca visible: **"Lima's Sales"** (monograma "LS", degradado
-teal/cyan sobre navy).
+lo que se vaya consiguiendo. Marca visible: **"Lima's Sales"** (monograma "LS").
+
+**Identidad visual (desde 2026-08-09):** paleta café/crema, ver
+[docs/superpowers/specs/2026-08-09-design-system-crm-familiar.md](docs/superpowers/specs/2026-08-09-design-system-crm-familiar.md)
+— reemplaza la paleta teal/navy original documentada en tickets anteriores. Base
+obligatoria para toda pantalla nueva o refactor visual. Incluye layout de escritorio
+(sidebar) además del mobile-first actual — pendiente de implementar, aún en fase de
+simulación (ver módulo CRM en curso).
 
 Documentos fuente de verdad — **leer antes de tocar código**:
 - [SPEC.md](SPEC.md) — reglas de negocio completas (clientes, inventario, ventas, abonos,
   anulaciones, folios, recibos, dashboard, reportes, casos límite, fuera de alcance).
 - [TICKETS.md](TICKETS.md) — desglose en tickets de corte vertical, con checklist y
   "Estado" de qué se probó en cada uno ya completado.
-- `docs/superpowers/specs/` — design docs puntuales (ej. anulaciones, recibos PDF/WhatsApp).
+- `docs/superpowers/specs/` — design docs puntuales (ej. anulaciones, recibos PDF/WhatsApp,
+  sistema de diseño café/crema).
 
 ## URLs y repositorio
 
@@ -36,7 +43,7 @@ Documentos fuente de verdad — **leer antes de tocar código**:
 |---------|-----------|
 | `index.html` | Login + shell principal (4 pestañas) + overlays (bottom sheets, paneles fullscreen) |
 | `app.js` | Toda la lógica JS — módulo ES, importa `@supabase/supabase-js`, `html2canvas`, `jsPDF` desde `esm.sh` (sin build step) |
-| `styles.css` | Estilos — paleta teal/navy "Lima's Sales" |
+| `styles.css` | Estilos — paleta café/crema "Lima's Sales" (ver design doc 2026-08-09) |
 | `sw.js` | Service worker — cachea el shell estático, versión leída de `version.js` |
 | `version.js` | Fuente única del número de versión, leída por `sw.js` y `app.js` |
 | `manifest.json` | PWA manifest |
@@ -54,6 +61,19 @@ Documentos fuente de verdad — **leer antes de tocar código**:
 Filosofía "todos ven todo" — no hay pantallas ni reportes ocultos entre roles; la única
 diferencia real es la capacidad de anular registros ajenos. Contraseña temporal sembrada:
 `2026` (pendiente que cada quien la cambie).
+
+## Forma de trabajo (instrucción de Luis, 2026-08-09)
+
+Luis expone el **problema** que quiere resolver; Claude actúa como el profesional y
+desarrolla la **solución completa** — no limitarse a lo literal pedido, sino sugerir lo
+que el sistema debe tener. Para toda funcionalidad nueva, el orden obligatorio es:
+
+1. **Auditar** el código y esquema reales (nunca suponer la arquitectura).
+2. **Investigar** cómo lo resuelven sistemas reales del ramo (búsqueda web con fuentes).
+3. **Simular** — mockup HTML navegable con la paleta real de la app, datos ficticios y
+   variantes estructurales para elegir, ANTES de escribir plan o código.
+4. **Decidir** — la simulación cierra con las decisiones concretas que Luis debe tomar.
+5. Solo después: congelar diseño → actualizar SPEC.md → tickets chicos verificables.
 
 ## Convenciones de este proyecto
 
@@ -136,7 +156,14 @@ activo de un usuario existente sí funciona. El cambio de contraseña propia ("M
 ya no depende de esto — se migró a `supabase.auth.updateUser()` y se probó de punta a
 punta.
 
-**Pendiente:** ver ticket 17 arriba. El resto de los tickets 01-16 están cerrados.
+**Pendiente:** ver ticket 17 (Fase D) arriba. Además de los tickets 01-16, también están
+cerrados 18 (ver/reenviar recibo desde Historial), 19 (buscador de cliente en Nueva
+venta/Nuevo abono), 20 (desglose de stock por almacén en Inventario) y 21 (identidad
+visual café/crema — recoloreo, pendiente que Luis confirme visualmente en producción con
+sesión iniciada). **En curso:** evolución hacia CRM familiar — ticket 22 (layout de
+escritorio con sidebar) y ticket 23 (ficha de cliente + seguimientos) aún no iniciados,
+ver `TICKETS.md` y
+[docs/superpowers/specs/2026-08-09-design-system-crm-familiar.md](docs/superpowers/specs/2026-08-09-design-system-crm-familiar.md).
 
 Los usuarios y roles fijos descritos abajo ("Usuarios y roles") dejaron de ser fijos con
 el ticket 12 — ahora son altas/bajas dinámicas desde la app (sección "Mi cuenta"). El

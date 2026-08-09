@@ -246,3 +246,28 @@ SPEC original:
 **Impacto en tickets ya completados:** el ticket 02 (PWA shell + login) requirió rework
 — re-branding (logo/nombre/paleta) y agregar la estructura de navegación inferior. El
 ticket 04 (Inventario) gana un criterio de aceptación nuevo (campo categoría).
+
+## 16. Identidad visual café/crema + escritorio (2026-08-09)
+
+El usuario compartió un sistema de diseño completo (paleta, tipografía, componentes,
+reglas responsive) para adoptar como base visual permanente del proyecto — documentado
+en [docs/superpowers/specs/2026-08-09-design-system-crm-familiar.md](docs/superpowers/specs/2026-08-09-design-system-crm-familiar.md).
+Confirmado en simulación previa (variantes móvil/escritorio en café/crema):
+
+1. **Paleta — de teal/cyan sobre navy a café/crema.** Se mantiene el nombre y logo
+   "Lima's Sales" (monograma LS); solo cambian colores y tipografía (Arial → Inter).
+2. **Layout de escritorio — nueva capacidad.** La app pasa de ser mobile-only a tener
+   también un layout de escritorio/laptop con navegación lateral (sidebar), manteniendo
+   el shell mobile-first actual sin cambios de estructura.
+3. **Navegación móvil — sin cambios.** Se mantienen las 4 pestañas actuales (Inicio /
+   Inventario / Clientes / Reportes); no se adopta el patrón alternativo de 5 pestañas
+   con "Nueva venta" destacada que traía la imagen de referencia.
+
+**Implementado (recoloreo, esta misma fecha):** `styles.css` (tokens de `:root` +
+gradientes/badges hardcodeados), `index.html` (theme-color, fuente Inter vía Google
+Fonts), `manifest.json` (theme_color/background_color), `icon.svg` (gradiente del
+monograma LS). Verificado en `localhost:3000` — tokens, gradiente de botón primario y
+color de error aplicando el valor exacto especificado, sin errores de consola.
+
+**Pendiente:** layout de escritorio (sidebar) y módulo CRM (ficha de cliente,
+seguimientos, registro de contacto) — ver `TICKETS.md`.
